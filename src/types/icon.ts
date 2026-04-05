@@ -1,5 +1,17 @@
 export type IconSource = "clipart" | "text" | "image";
 export type IconShape = "circle" | "square" | "squircle" | "none";
+export type GradientDirection = "to bottom" | "to right" | "to bottom right" | "to bottom left" | "to top" | "to top right";
+
+export interface GradientStop {
+  color: string;
+  position: number; // 0–100
+}
+
+export interface GradientConfig {
+  enabled: boolean;
+  stops: GradientStop[];
+  direction: GradientDirection;
+}
 
 export interface IconConfig {
   source: IconSource;
@@ -14,6 +26,7 @@ export interface IconConfig {
   // Styling
   foregroundColor: string;
   backgroundColor: string;
+  gradient: GradientConfig;
   shape: IconShape;
   padding: number;
 }
@@ -27,6 +40,14 @@ export const DEFAULT_CONFIG: IconConfig = {
   imageDataUrl: null,
   foregroundColor: "#FFFFFF",
   backgroundColor: "#3DDC84",
+  gradient: {
+    enabled: false,
+    stops: [
+      { color: "#3DDC84", position: 0 },
+      { color: "#00BCD4", position: 100 },
+    ],
+    direction: "to bottom right",
+  },
   shape: "circle",
   padding: 20,
 };

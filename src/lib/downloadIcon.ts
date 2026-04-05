@@ -31,13 +31,36 @@ function getShapeSvgPath(shape: IconConfig['shape'], size: number): string {
   }
 }
 
+function buildSvgGradientDef(config: IconConfig, size: number): { defs: string; fillRef: string } {
+  if (!config.gradient.enabled || config.gradient.stops.length < 2) {
+    return { defs: '', fillRef: config.backgroundColor };
+  }
+
+  const dirAngles: Record<string, string> = {
+    'to bottom':       'x1="50%" y1="0%"  x2="50%" y2="100%"',
+    'to top':          'x1="50%" y1="100%" x2="50%" y2="0%"',
+    'to right':        'x1="0%"  y1="50%" x2="100%" y2="50%"',
+    'to bottom right': 'x1="0%"  y1="0%"  x2="100%" y2="100%"',
+    'to bottom left':  'x1="100%" y1="0%" x2="0%"   y2="100%"',
+    'to top right':    'x1="0%"  y1="100%" x2="100%" y2="0%"',
+  };
+  const coords = dirAngles[config.gradient.direction] ?? dirAngles['to bottom right'];
+  const stopTags = [...config.gradient.stops]
+    .sort((a, b) => a.position - b.position)
+    .map(s => `  <stop offset="${s.position}%" stop-color="${s.color}"/>`)
+    .join('\n');
+  const defs = `<defs>\n<linearGradient id="bgGrad" ${coords}>\n${stopTags}\n</linearGradient>\n</defs>`;
+  return { defs, fillRef: 'url(#bgGrad)' };
+}
+
 export function generateSvg(config: IconConfig, size: number = 512): string {
   const padding = (config.padding / 100) * size;
   const innerSize = size - padding * 2;
   const clip = getShapeSvgClip(config.shape, size);
-  
+  const { defs, fillRef } = buildSvgGradientDef(config, size);
+
   let foregroundContent = '';
-  
+
   if (config.source === 'text') {
     foregroundContent = `<text x="${size / 2}" y="${size / 2}" fill="${config.foregroundColor}" font-family="Inter, sans-serif" font-weight="${config.fontWeight}" font-size="${innerSize * 0.55}" text-anchor="middle" dominant-baseline="central">${escapeXml(config.text)}</text>`;
   } else if (config.source === 'clipart') {
@@ -46,7 +69,6 @@ export function generateSvg(config: IconConfig, size: number = 512): string {
       const markup = renderToStaticMarkup(
         React.createElement(Icon, { size: innerSize, color: config.foregroundColor, strokeWidth: 1.5 })
       );
-      // Better: embed the SVG inline with positioning
       foregroundContent = markup.replace('<svg ', `<svg x="${padding}" y="${padding}" `);
     }
   } else if (config.source === 'image' && config.imageDataUrl) {
@@ -55,9 +77,10 @@ export function generateSvg(config: IconConfig, size: number = 512): string {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+${defs}
 ${clip}
 <g clip-path="url(#shape)">
-  ${getShapeSvgPath(config.shape, size)} fill="${config.backgroundColor}"/>
+  ${getShapeSvgPath(config.shape, size)} fill="${fillRef}"/>
   ${foregroundContent}
 </g>
 </svg>`;
@@ -105,15 +128,24 @@ export function generateAndroidVectorDrawable(config: IconConfig, size: number =
     bgPath = `M${rad},0L${viewportSize - rad},0Q${viewportSize},0,${viewportSize},${rad}L${viewportSize},${viewportSize - rad}Q${viewportSize},${viewportSize},${viewportSize - rad},${viewportSize}L${rad},${viewportSize}Q0,${viewportSize},0,${viewportSize - rad}L0,${rad}Q0,0,${rad},0Z`;
   }
 
+  // Android vector drawables don't natively support gradients before API 24.
+  // We use the start-stop colours as a comment hint and the first stop (or solid colour) as fill.
+  const bgFill = config.gradient.enabled && config.gradient.stops.length >= 2
+    ? config.gradient.stops[0].color
+    : config.backgroundColor;
+  const gradientComment = config.gradient.enabled
+    ? `\n    <!-- Gradient: ${config.gradient.stops.map(s => `${s.color} @${s.position}%`).join(' → ')} (direction: ${config.gradient.direction}). For API 24+ use <gradient> tag instead. -->`
+    : '';
+
   return `<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="${size}dp"
     android:height="${size}dp"
     android:viewportWidth="${viewportSize}"
-    android:viewportHeight="${viewportSize}">
+    android:viewportHeight="${viewportSize}">${gradientComment}
     <path
         android:pathData="${bgPath}"
-        android:fillColor="${config.backgroundColor}"/>
+        android:fillColor="${bgFill}"/>
 ${pathData}
 </vector>`;
 }

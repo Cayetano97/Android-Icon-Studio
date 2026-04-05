@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/Icon_Readme.png" alt="Android Icon Studio" />
+  <img src="public/Icon_Readme.png" alt="Android Icon Studio" width="280" />
 </p>
 
 # 🚀 Android Icon Studio
@@ -58,6 +58,43 @@
    ```bash
    npm run dev
    ```
+
+## 📦 Download Output Structure
+
+When you click **Download Icons**, you will receive a `android-icons.zip` file with the following structure:
+
+```
+android-icons.zip
+│
+├── res/
+│   ├── mipmap-mdpi/
+│   │   └── ic_launcher.png          # 48 × 48 px
+│   ├── mipmap-hdpi/
+│   │   └── ic_launcher.png          # 72 × 72 px
+│   ├── mipmap-xhdpi/
+│   │   └── ic_launcher.png          # 96 × 96 px
+│   ├── mipmap-xxhdpi/
+│   │   └── ic_launcher.png          # 144 × 144 px
+│   └── mipmap-xxxhdpi/
+│       └── ic_launcher.png          # 192 × 192 px
+│
+├── ic_launcher_playstore_512.png    # 512 × 512 px  – Google Play Store listing
+├── ic_launcher.svg                  # Scalable vector version (with gradient support)
+└── ic_launcher.xml                  # Android Vector Drawable (API 21+)
+```
+
+### File details
+
+| File | Format | Usage |
+| :--- | :----- | :---- |
+| `res/mipmap-*/ic_launcher.png` | PNG | App icon for each screen density bucket |
+| `ic_launcher_playstore_512.png` | PNG | High-res icon for the Google Play Store listing |
+| `ic_launcher.svg` | SVG | Scalable vector; preserves gradients via `<linearGradient>` |
+| `ic_launcher.xml` | XML | Android Vector Drawable; gradient fills require API 24+ |
+
+> **Tip:** Drop the `res/` folder directly into `app/src/main/` in Android Studio and you are done.
+
+---
 
 ## 🤝 How to Contribute
 
