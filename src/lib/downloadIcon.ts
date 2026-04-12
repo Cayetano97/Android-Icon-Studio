@@ -32,24 +32,55 @@ function getShapeSvgPath(shape: IconConfig['shape'], size: number): string {
 }
 
 function buildSvgGradientDef(config: IconConfig, size: number): { defs: string; fillRef: string } {
-  if (!config.gradient.enabled || config.gradient.stops.length < 2) {
-    return { defs: '', fillRef: config.backgroundColor };
+  const bg = config.background;
+  if (!bg.includes('linear-gradient') && !bg.includes('radial-gradient')) {
+    return { defs: '', fillRef: bg };
   }
 
-  const dirAngles: Record<string, string> = {
-    'to bottom':       'x1="50%" y1="0%"  x2="50%" y2="100%"',
-    'to top':          'x1="50%" y1="100%" x2="50%" y2="0%"',
-    'to right':        'x1="0%"  y1="50%" x2="100%" y2="50%"',
-    'to bottom right': 'x1="0%"  y1="0%"  x2="100%" y2="100%"',
-    'to bottom left':  'x1="100%" y1="0%" x2="0%"   y2="100%"',
-    'to top right':    'x1="0%"  y1="100%" x2="100%" y2="0%"',
-  };
-  const coords = dirAngles[config.gradient.direction] ?? dirAngles['to bottom right'];
-  const stopTags = [...config.gradient.stops]
-    .sort((a, b) => a.position - b.position)
-    .map(s => `  <stop offset="${s.position}%" stop-color="${s.color}"/>`)
-    .join('\n');
-  const defs = `<defs>\n<linearGradient id="bgGrad" ${coords}>\n${stopTags}\n</linearGradient>\n</defs>`;
+  const innerMatch = bg.match(/-gradient\((.*)\)$/);
+  if (!innerMatch) {
+    return { defs: '', fillRef: bg };
+  }
+  
+  const inner = innerMatch[1];
+  const parts = inner.split(/,(?![^\(]*\))/).map(x => x.trim());
+  let angleParam = parts[0];
+  let angle = 180;
+  let stopsList = parts.slice(1);
+  
+  if (angleParam.includes('deg')) {
+    angle = parseFloat(angleParam) || 0;
+  } else if (angleParam.includes('to ')) {
+     // rudimentary mappings
+     const dir = angleParam.trim();
+     if (dir === 'to top') angle = 0;
+     else if (dir === 'to right') angle = 90;
+     else if (dir === 'to bottom') angle = 180;
+     else if (dir === 'to left') angle = 270;
+     else if (dir === 'to top right') angle = 45;
+     else if (dir === 'to bottom right') angle = 135;
+     else if (dir === 'to bottom left') angle = 225;
+     else if (dir === 'to top left') angle = 315;
+  } else {
+    stopsList = parts;
+  }
+
+  // Simplified angle to coordinates for SVG linearGradient
+  const rad = (angle - 90) * (Math.PI / 180);
+  const x1 = Math.round(50 + Math.cos(rad + Math.PI) * 50) + '%';
+  const y1 = Math.round(50 + Math.sin(rad + Math.PI) * 50) + '%';
+  const x2 = Math.round(50 + Math.cos(rad) * 50) + '%';
+  const y2 = Math.round(50 + Math.sin(rad) * 50) + '%';
+
+  const stopTags = stopsList.map(stop => {
+    const sp = stop.split(' ');
+    let posStr = sp.pop() || '';
+    if (!posStr.includes('%')) { sp.push(posStr); posStr = ''; }
+    const color = sp.join(' ');
+    return `  <stop offset="${posStr}" stop-color="${color}"/>`;
+  }).join('\n');
+
+  const defs = `<defs>\n<linearGradient id="bgGrad" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">\n${stopTags}\n</linearGradient>\n</defs>`;
   return { defs, fillRef: 'url(#bgGrad)' };
 }
 
@@ -130,12 +161,23 @@ export function generateAndroidVectorDrawable(config: IconConfig, size: number =
 
   // Android vector drawables don't natively support gradients before API 24.
   // We use the start-stop colours as a comment hint and the first stop (or solid colour) as fill.
-  const bgFill = config.gradient.enabled && config.gradient.stops.length >= 2
-    ? config.gradient.stops[0].color
-    : config.backgroundColor;
-  const gradientComment = config.gradient.enabled
-    ? `\n    <!-- Gradient: ${config.gradient.stops.map(s => `${s.color} @${s.position}%`).join(' → ')} (direction: ${config.gradient.direction}). For API 24+ use <gradient> tag instead. -->`
-    : '';
+  const bg = config.background;
+  const isGradient = bg.includes('-gradient');
+  let bgFill = bg;
+  let gradientComment = '';
+  
+  if (isGradient) {
+    const innerMatch = bg.match(/-gradient\((.*)\)$/);
+    if (innerMatch) {
+       const parts = innerMatch[1].split(/,(?![^\(]*\))/).map(x => x.trim());
+       const firstStop = parts.find(p => p.startsWith('rgb') || p.startsWith('#'));
+       if (firstStop) {
+         bgFill = firstStop.split(' ').slice(0, -1).join(' '); // rudimentary color extraction
+         if (!bgFill) bgFill = firstStop;
+       }
+       gradientComment = `\n    <!-- Gradient used defined by background css: ${bg}. For API 24+ use <gradient> tag instead. -->`;
+    }
+  }
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"

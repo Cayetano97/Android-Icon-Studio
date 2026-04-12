@@ -9,6 +9,9 @@
 ![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
 
+> [!WARNING]
+> **Project under construction:** This web app is currently in **beta**. Changes may occur frequently as we work towards a stable release.
+
 **Android Icon Studio** is a web tool designed to help developers and designers to create and export high-quality icons for Android applications.
 
 ---
@@ -85,12 +88,12 @@ android-icons.zip
 
 ### File details
 
-| File | Format | Usage |
-| :--- | :----- | :---- |
-| `res/mipmap-*/ic_launcher.png` | PNG | App icon for each screen density bucket |
-| `ic_launcher_playstore_512.png` | PNG | High-res icon for the Google Play Store listing |
-| `ic_launcher.svg` | SVG | Scalable vector; preserves gradients via `<linearGradient>` |
-| `ic_launcher.xml` | XML | Android Vector Drawable; gradient fills require API 24+ |
+| File                            | Format | Usage                                                       |
+| :------------------------------ | :----- | :---------------------------------------------------------- |
+| `res/mipmap-*/ic_launcher.png`  | PNG    | App icon for each screen density bucket                     |
+| `ic_launcher_playstore_512.png` | PNG    | High-res icon for the Google Play Store listing             |
+| `ic_launcher.svg`               | SVG    | Scalable vector; preserves gradients via `<linearGradient>` |
+| `ic_launcher.xml`               | XML    | Android Vector Drawable; gradient fills require API 24+     |
 
 > **Tip:** Drop the `res/` folder directly into `app/src/main/` in Android Studio and you are done.
 

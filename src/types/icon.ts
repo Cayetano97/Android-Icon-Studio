@@ -7,11 +7,7 @@ export interface GradientStop {
   position: number; // 0–100
 }
 
-export interface GradientConfig {
-  enabled: boolean;
-  stops: GradientStop[];
-  direction: GradientDirection;
-}
+// GradientConfig removed as we use css strings now
 
 export interface IconConfig {
   source: IconSource;
@@ -25,8 +21,7 @@ export interface IconConfig {
   imageDataUrl: string | null;
   // Styling
   foregroundColor: string;
-  backgroundColor: string;
-  gradient: GradientConfig;
+  background: string;
   shape: IconShape;
   padding: number;
 }
@@ -38,16 +33,8 @@ export const DEFAULT_CONFIG: IconConfig = {
   fontFamily: "Inter",
   fontWeight: 700,
   imageDataUrl: null,
-  foregroundColor: "#FFFFFF",
-  backgroundColor: "#3DDC84",
-  gradient: {
-    enabled: false,
-    stops: [
-      { color: "#3DDC84", position: 0 },
-      { color: "#00BCD4", position: 100 },
-    ],
-    direction: "to bottom right",
-  },
+  foregroundColor: "rgba(255, 255, 255, 1)",
+  background: "linear-gradient(135deg, rgba(61,220,132,1) 0%, rgba(0,188,212,1) 100%)",
   shape: "circle",
   padding: 20,
 };

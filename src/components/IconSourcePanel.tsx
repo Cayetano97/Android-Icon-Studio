@@ -85,8 +85,8 @@ export default function IconSourcePanel({ config, onChange }: Props) {
             <LucideIcons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/40" size={16} />
           </div>
           
-          <div className="h-[240px] overflow-y-auto pr-2 -mr-2 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 transition-colors">
-            <div className="grid grid-cols-5 sm:grid-cols-6 gap-2 pb-2">
+          <div className="h-[180px] overflow-y-auto pr-2 -mr-2 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 transition-colors">
+            <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5 pb-2 px-2">
             {filtered.map((name) => {
               try {
                 const Icon = (LucideIcons as any)[name];
@@ -96,7 +96,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
                     key={name}
                     onClick={() => onChange({ clipartName: name })}
                     aria-label={`Select icon ${name}`}
-                    className={`aspect-square rounded-2xl flex items-center justify-center transition-all hover:bg-accent/50 hover:scale-[1.08] active:scale-95 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`aspect-square rounded-xl flex items-center justify-center transition-all hover:bg-accent/50 hover:scale-[1.08] active:scale-95 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       config.clipartName === name 
                         ? 'bg-primary shadow-[0_0_20px_-5px_hsla(var(--primary),0.4)] ring-0 scale-105' 
                         : 'bg-card/20 border border-border/40'
@@ -104,7 +104,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
                     title={name}
                   >
                     <Icon 
-                      size={24} 
+                      size={20} 
                       strokeWidth={config.clipartName === name ? 2.5 : 2}
                       className={config.clipartName === name ? "text-primary-foreground" : "text-muted-foreground/70"} 
                     />

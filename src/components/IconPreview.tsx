@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState, memo } from 'react';
-import { IconConfig, GradientConfig } from '@/types/icon';
+import { IconConfig } from '@/types/icon';
 import * as LucideIcons from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -23,29 +23,7 @@ function getClipPath(shape: IconConfig['shape'], size: number): Path2D {
   return path;
 }
 
-/** Converts a GradientConfig into a CanvasGradient for the given context/size. */
-function buildCanvasGradient(
-  ctx: CanvasRenderingContext2D,
-  gradient: GradientConfig,
-  size: number
-): CanvasGradient {
-  const directionMap: Record<string, [number, number, number, number]> = {
-    'to bottom':       [size / 2, 0,      size / 2, size],
-    'to top':          [size / 2, size,   size / 2, 0],
-    'to right':        [0,        size / 2, size,   size / 2],
-    'to bottom right': [0, 0, size, size],
-    'to bottom left':  [size, 0, 0, size],
-    'to top right':    [0, size, size, 0],
-  };
-  const [x0, y0, x1, y1] = directionMap[gradient.direction] ?? [0, 0, size, size];
-  const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-  // Sort stops ascending — CanvasGradient requires offsets in order 0→1
-  const sorted = [...gradient.stops].sort((a, b) => a.position - b.position);
-  for (const stop of sorted) {
-    grad.addColorStop(stop.position / 100, stop.color);
-  }
-  return grad;
-}
+import { applyCanvasBackground } from '@/lib/canvasGradient';
 
 function IconPreview({ config, canvasRef }: Props) {
   const previewSize = 512;
@@ -143,11 +121,7 @@ function IconPreview({ config, canvasRef }: Props) {
       const clipPath = getClipPath(config.shape, previewSize);
       ctx.clip(clipPath);
 
-      if (config.gradient.enabled && config.gradient.stops.length >= 2) {
-        ctx.fillStyle = buildCanvasGradient(ctx, config.gradient, previewSize);
-      } else {
-        ctx.fillStyle = config.backgroundColor;
-      }
+      applyCanvasBackground(ctx, config.background, previewSize, previewSize);
 
       ctx.fillRect(0, 0, previewSize, previewSize);
       ctx.restore();

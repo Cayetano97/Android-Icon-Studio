@@ -42,9 +42,6 @@ export default function Index() {
             <h1 className="text-lg font-bold text-foreground tracking-tight">
               Android Icon Studio
             </h1>
-            <p className="text-xs text-muted-foreground font-medium">
-              Create high-quality adaptive icons
-            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
