@@ -224,27 +224,31 @@ function IconPreview({ config, canvasRef }: Props) {
   ];
 
   return (
-    <div className="flex flex-col items-center gap-8">
-      <div className="flex flex-col items-center gap-12 py-8">
+    <div className="flex flex-col h-full w-full">
+      {/* Main Preview Area */}
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-12 min-h-0">
         <div className="relative group">
-          <div className="absolute -inset-4 bg-primary/5 rounded-[2.5rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="absolute -inset-10 bg-primary/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
           <canvas
             ref={canvasRef}
             width={previewSize}
             height={previewSize}
-            className="relative w-64 h-64 md:w-80 md:h-80 drop-shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]"
+            className="relative w-40 h-40 md:w-64 md:h-64 lg:w-[320px] lg:h-[320px] drop-shadow-2xl transition-all duration-500 group-hover:scale-[1.03] group-hover:-rotate-1"
           />
         </div>
+      </div>
 
-        <div className="flex items-end gap-6 flex-wrap justify-center p-6 bg-accent/30 backdrop-blur-sm rounded-3xl border border-border/50">
+      {/* Density Preview Footer */}
+      <div className="w-full px-6 pb-8 pt-2">
+        <div className="max-w-4xl mx-auto flex items-end gap-6 md:gap-10 flex-wrap justify-center p-6 bg-card/40 backdrop-blur-xl rounded-[2.5rem] border border-border/50 shadow-2xl ring-1 ring-white/10">
           {androidSizes.slice(0, 5).map(({ name, size }, index) => {
             const displaySize = Math.max(32, size / 3.5);
             return (
               <div
                 key={name}
-                className="flex flex-col items-center gap-2 group/size"
+                className="flex flex-col items-center gap-2.5 group/size transition-transform hover:scale-110 duration-300"
               >
-                <div className="rounded-xl p-1 group-hover/size:border-primary/30 transition-colors">
+                <div className="rounded-xl p-1 bg-background/20 group-hover/size:bg-background/40 transition-colors">
                   <canvas
                     ref={(el) => {
                       smallCanvasRefs.current[index] = el;
@@ -252,14 +256,14 @@ function IconPreview({ config, canvasRef }: Props) {
                     width={size}
                     height={size}
                     style={{ width: displaySize, height: displaySize }}
-                    className="rounded-lg shadow-inner"
+                    className="rounded-lg shadow-sm"
                   />
                 </div>
                 <div className="flex flex-col items-center">
-                  <span className="text-[11px] text-foreground font-bold tracking-tight uppercase">
+                  <span className="text-[10px] text-foreground/80 font-black tracking-widest uppercase">
                     {name}
                   </span>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                  <span className="text-[9px] text-muted-foreground font-medium tabular-nums opacity-60">
                     {size}px
                   </span>
                 </div>
