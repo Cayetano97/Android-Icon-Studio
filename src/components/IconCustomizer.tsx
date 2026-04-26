@@ -66,14 +66,39 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
     if (!swatchRef.current) return;
     const rect = swatchRef.current.getBoundingClientRect();
     const margin = 8;
-    let left = rect.left + rect.width / 2 - PICKER_WIDTH / 2;
+    const sidebarWidth = 384; // w-96 in Tailwind
+    const isDesktop = window.innerWidth >= 1024; // lg breakpoint
+    
+    let left;
+    if (isDesktop) {
+      // On desktop, place it exactly to the right of the sidebar
+      left = sidebarWidth + margin;
+    } else {
+      // On mobile, try to align with the swatch
+      left = rect.left;
+      if (left + PICKER_WIDTH > window.innerWidth - margin) {
+        left = rect.right - PICKER_WIDTH;
+      }
+    }
+    
+    // Safety clamp for horizontal bounds
     left = Math.max(margin, Math.min(left, window.innerWidth - PICKER_WIDTH - margin));
     
-    let top = rect.bottom + margin;
-    const estimatedHeight = 330; // rough height of color picker
-    if (top + estimatedHeight > window.innerHeight && rect.top > estimatedHeight + margin) {
-      top = rect.top - estimatedHeight - margin; // render above
+    // Vertical position
+    let top;
+    // Use actual height if available, otherwise estimate
+    const height = popoverRef.current?.offsetHeight || 450;
+    
+    if (isDesktop) {
+      // On desktop, center the picker vertically relative to the swatch
+      top = rect.top + rect.height / 2 - height / 2;
+    } else {
+      // On mobile, keep it below the swatch
+      top = rect.bottom + margin;
     }
+    
+    // Safety clamp for vertical bounds
+    top = Math.max(margin, Math.min(top, window.innerHeight - height - margin));
     
     setPopoverStyle({ position: 'fixed', top, left, width: PICKER_WIDTH, zIndex: 9999 });
   }
@@ -81,9 +106,17 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
   // Keep popover in sync if the user resizes/scrolls while it is open
   useEffect(() => {
     if (!isOpen) return;
+    
+    // Initial compute
+    computePosition();
+    
+    // Re-compute after a tiny delay to ensure height is captured if it changed during render
+    const timer = setTimeout(computePosition, 0);
+    
     window.addEventListener('resize', computePosition);
     window.addEventListener('scroll', computePosition, true);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('resize', computePosition);
       window.removeEventListener('scroll', computePosition, true);
     };
@@ -197,14 +230,6 @@ function IconCustomizer({ config, onChange }: Props) {
       {/* Colors Section */}
       <div className="space-y-3 relative z-40">
         <div className="grid grid-cols-2 gap-3">
-          {/* Background — supports both solid and gradient */}
-          <PopoverColorPicker
-            label="Background"
-            value={config.background}
-            onChange={(color) => onChange({ background: color })}
-            idSuffix="bg"
-          />
-
           {/* Icon color — solid only */}
           <PopoverColorPicker
             label="Icon Color"
@@ -212,6 +237,14 @@ function IconCustomizer({ config, onChange }: Props) {
             onChange={(color) => onChange({ foregroundColor: color })}
             solidOnly
             idSuffix="fg"
+          />
+
+          {/* Background — supports both solid and gradient */}
+          <PopoverColorPicker
+            label="Background"
+            value={config.background}
+            onChange={(color) => onChange({ background: color })}
+            idSuffix="bg"
           />
         </div>
       </div>
