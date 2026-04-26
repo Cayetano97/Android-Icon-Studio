@@ -36,7 +36,11 @@ export default function Index() {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className="flex items-center justify-center">
-            <img src="/ic_launcher.svg" alt="Android Icon Studio Logo" className="w-8 h-8 drop-shadow-sm" />
+            <img
+              src="/ic_launcher.svg"
+              alt="Android Icon Studio Logo"
+              className="w-8 h-8 drop-shadow-sm"
+            />
           </div>
           <div className="hidden sm:block">
             <h1 className="text-lg font-bold text-foreground tracking-tight">

@@ -1,58 +1,58 @@
 export interface FontConfig {
   family: string;
   weights: number[];
-  category: 'sans-serif' | 'serif' | 'display' | 'monospace' | 'handwriting';
+  category: "sans-serif" | "serif" | "display" | "monospace" | "handwriting";
 }
 
 export const SUPPORTED_FONTS: FontConfig[] = [
   {
-    family: 'Inter',
+    family: "Inter",
     weights: [100, 200, 300, 400, 500, 600, 700, 800, 900],
-    category: 'sans-serif',
+    category: "sans-serif",
   },
   {
-    family: 'Roboto',
+    family: "Roboto",
     weights: [100, 300, 400, 500, 700, 900],
-    category: 'sans-serif',
+    category: "sans-serif",
   },
   {
-    family: 'Montserrat',
+    family: "Montserrat",
     weights: [100, 200, 300, 400, 500, 600, 700, 800, 900],
-    category: 'sans-serif',
+    category: "sans-serif",
   },
   {
-    family: 'Bebas Neue',
+    family: "Bebas Neue",
     weights: [400],
-    category: 'display',
+    category: "display",
   },
   {
-    family: 'Playfair Display',
+    family: "Playfair Display",
     weights: [400, 500, 600, 700, 800, 900],
-    category: 'serif',
+    category: "serif",
   },
   {
-    family: 'Oswald',
+    family: "Oswald",
     weights: [200, 300, 400, 500, 600, 700],
-    category: 'sans-serif',
+    category: "sans-serif",
   },
   {
-    family: 'Source Code Pro',
+    family: "Source Code Pro",
     weights: [200, 300, 400, 500, 600, 700, 800, 900],
-    category: 'monospace',
+    category: "monospace",
   },
   {
-    family: 'Arvo',
+    family: "Arvo",
     weights: [400, 700],
-    category: 'serif',
+    category: "serif",
   },
   {
-    family: 'Lobster',
+    family: "Lobster",
     weights: [400],
-    category: 'handwriting',
+    category: "handwriting",
   },
   {
-    family: 'Pacifico',
+    family: "Pacifico",
     weights: [400],
-    category: 'handwriting',
+    category: "handwriting",
   },
 ];

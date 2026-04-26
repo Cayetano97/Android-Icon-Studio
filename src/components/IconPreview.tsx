@@ -1,29 +1,29 @@
-import { useRef, useEffect, useCallback, useState, memo } from 'react';
-import { IconConfig } from '@/types/icon';
-import * as LucideIcons from 'lucide-react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { useRef, useEffect, useCallback, useState, memo } from "react";
+import { IconConfig } from "@/types/icon";
+import * as LucideIcons from "lucide-react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 interface Props {
   config: IconConfig;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
 }
 
-function getClipPath(shape: IconConfig['shape'], size: number): Path2D {
+function getClipPath(shape: IconConfig["shape"], size: number): Path2D {
   const path = new Path2D();
   const r = size / 2;
-  if (shape === 'circle') {
+  if (shape === "circle") {
     path.arc(r, r, r, 0, Math.PI * 2);
-  } else if (shape === 'square') {
+  } else if (shape === "square") {
     const radius = size * 0.08;
     path.roundRect(0, 0, size, size, radius);
-  } else if (shape === 'squircle') {
+  } else if (shape === "squircle") {
     const radius = size * 0.22;
     path.roundRect(0, 0, size, size, radius);
   }
   return path;
 }
 
-import { applyCanvasBackground } from '@/lib/canvasGradient';
+import { applyCanvasBackground } from "@/lib/canvasGradient";
 
 function IconPreview({ config, canvasRef }: Props) {
   const previewSize = 512;
@@ -35,18 +35,19 @@ function IconPreview({ config, canvasRef }: Props) {
 
   // Pre-load icon, image or font for efficient rendering
   useEffect(() => {
-    if (config.source === 'clipart') {
-      if (lastClipartRef.current === config.clipartName && iconImgRef.current) return;
+    if (config.source === "clipart") {
+      if (lastClipartRef.current === config.clipartName && iconImgRef.current)
+        return;
 
       const Icon = (LucideIcons as any)[config.clipartName];
       if (Icon) {
         setIsIconLoaded(false);
         try {
           const svgMarkup = renderToStaticMarkup(
-            <Icon size={previewSize} color="#000000" strokeWidth={1.5} />
+            <Icon size={previewSize} color="#000000" strokeWidth={1.5} />,
           );
           const img = new Image();
-          const blob = new Blob([svgMarkup], { type: 'image/svg+xml' });
+          const blob = new Blob([svgMarkup], { type: "image/svg+xml" });
           const url = URL.createObjectURL(blob);
           img.onload = () => {
             iconImgRef.current = img;
@@ -59,8 +60,9 @@ function IconPreview({ config, canvasRef }: Props) {
           console.error(`Error loading clipart mask:`, e);
         }
       }
-    } else if (config.source === 'image' && config.imageDataUrl) {
-      if (lastClipartRef.current === config.imageDataUrl && iconImgRef.current) return;
+    } else if (config.source === "image" && config.imageDataUrl) {
+      if (lastClipartRef.current === config.imageDataUrl && iconImgRef.current)
+        return;
 
       setIsIconLoaded(false);
       const img = new Image();
@@ -70,14 +72,14 @@ function IconPreview({ config, canvasRef }: Props) {
         setIsIconLoaded(true);
       };
       img.src = config.imageDataUrl;
-    } else if (config.source === 'text') {
-      const fontUrl = `https://fonts.googleapis.com/css2?family=${config.fontFamily.replace(/ /g, '+')}:wght@${config.fontWeight}&display=swap`;
+    } else if (config.source === "text") {
+      const fontUrl = `https://fonts.googleapis.com/css2?family=${config.fontFamily.replace(/ /g, "+")}:wght@${config.fontWeight}&display=swap`;
 
-      let link = document.getElementById('google-font-link') as HTMLLinkElement;
+      let link = document.getElementById("google-font-link") as HTMLLinkElement;
       if (!link) {
-        link = document.createElement('link');
-        link.id = 'google-font-link';
-        link.rel = 'stylesheet';
+        link = document.createElement("link");
+        link.id = "google-font-link";
+        link.rel = "stylesheet";
         document.head.appendChild(link);
       }
 
@@ -85,12 +87,15 @@ function IconPreview({ config, canvasRef }: Props) {
         setIsIconLoaded(false);
         link.href = fontUrl;
 
-        document.fonts.load(`${config.fontWeight} 16px "${config.fontFamily}"`).then(() => {
-          setIsIconLoaded(true);
-        }).catch((err) => {
-          console.error('Font loading failed:', err);
-          setIsIconLoaded(true);
-        });
+        document.fonts
+          .load(`${config.fontWeight} 16px "${config.fontFamily}"`)
+          .then(() => {
+            setIsIconLoaded(true);
+          })
+          .catch((err) => {
+            console.error("Font loading failed:", err);
+            setIsIconLoaded(true);
+          });
       } else {
         setIsIconLoaded(true);
       }
@@ -99,14 +104,20 @@ function IconPreview({ config, canvasRef }: Props) {
       lastClipartRef.current = null;
       setIsIconLoaded(false);
     }
-  }, [config.clipartName, config.source, config.imageDataUrl, config.fontFamily, config.fontWeight]);
+  }, [
+    config.clipartName,
+    config.source,
+    config.imageDataUrl,
+    config.fontFamily,
+    config.fontWeight,
+  ]);
 
   const rafIdRef = useRef<number | null>(null);
 
   const drawNow = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     if (canvas.width !== previewSize) {
@@ -116,7 +127,7 @@ function IconPreview({ config, canvasRef }: Props) {
 
     ctx.clearRect(0, 0, previewSize, previewSize);
 
-    if (config.shape !== 'none') {
+    if (config.shape !== "none") {
       ctx.save();
       const clipPath = getClipPath(config.shape, previewSize);
       ctx.clip(clipPath);
@@ -130,30 +141,38 @@ function IconPreview({ config, canvasRef }: Props) {
     const padding = (config.padding / 100) * previewSize;
     const innerSize = previewSize - padding * 2;
 
-    if (config.source === 'text') {
+    if (config.source === "text") {
       ctx.fillStyle = config.foregroundColor;
       ctx.font = `${config.fontWeight} ${innerSize * 0.5}px "${config.fontFamily}", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const yOffset = config.fontFamily === 'Bebas Neue' ? 4 : 0;
-      ctx.fillText(config.text, previewSize / 2, (previewSize / 2) + yOffset);
-    } else if (config.source === 'image' && iconImgRef.current && isIconLoaded) {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const yOffset = config.fontFamily === "Bebas Neue" ? 4 : 0;
+      ctx.fillText(config.text, previewSize / 2, previewSize / 2 + yOffset);
+    } else if (
+      config.source === "image" &&
+      iconImgRef.current &&
+      isIconLoaded
+    ) {
       ctx.drawImage(iconImgRef.current, padding, padding, innerSize, innerSize);
-    } else if (config.source === 'clipart' && iconImgRef.current && isIconLoaded) {
+    } else if (
+      config.source === "clipart" &&
+      iconImgRef.current &&
+      isIconLoaded
+    ) {
       if (!offscreenCanvasRef.current) {
-        offscreenCanvasRef.current = document.createElement('canvas');
+        offscreenCanvasRef.current = document.createElement("canvas");
       }
       const offCanvas = offscreenCanvasRef.current;
       if (offCanvas.width !== innerSize) {
         offCanvas.width = innerSize;
         offCanvas.height = innerSize;
       }
-      const offCtx = offCanvas.getContext('2d');
+      const offCtx = offCanvas.getContext("2d");
       if (offCtx) {
         offCtx.clearRect(0, 0, innerSize, innerSize);
         offCtx.save();
         offCtx.drawImage(iconImgRef.current, 0, 0, innerSize, innerSize);
-        offCtx.globalCompositeOperation = 'source-in';
+        offCtx.globalCompositeOperation = "source-in";
         offCtx.fillStyle = config.foregroundColor;
         offCtx.fillRect(0, 0, innerSize, innerSize);
         offCtx.restore();
@@ -164,7 +183,7 @@ function IconPreview({ config, canvasRef }: Props) {
     smallCanvasRefs.current.forEach((smallCanvas, index) => {
       if (!smallCanvas || !canvas) return;
       const size = androidSizes[index].size;
-      const sCtx = smallCanvas.getContext('2d');
+      const sCtx = smallCanvas.getContext("2d");
       if (sCtx) {
         if (smallCanvas.width !== size) {
           smallCanvas.width = size;
@@ -174,7 +193,7 @@ function IconPreview({ config, canvasRef }: Props) {
         sCtx.drawImage(canvas, 0, 0, size, size);
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, canvasRef, isIconLoaded]);
 
   const scheduleDraw = useCallback(() => {
@@ -196,12 +215,12 @@ function IconPreview({ config, canvasRef }: Props) {
   }, [scheduleDraw]);
 
   const androidSizes = [
-    { name: 'mdpi', size: 48 },
-    { name: 'hdpi', size: 72 },
-    { name: 'xhdpi', size: 96 },
-    { name: 'xxhdpi', size: 144 },
-    { name: 'xxxhdpi', size: 192 },
-    { name: 'Play Store', size: 512 },
+    { name: "mdpi", size: 48 },
+    { name: "hdpi", size: 72 },
+    { name: "xhdpi", size: 96 },
+    { name: "xxhdpi", size: 144 },
+    { name: "xxxhdpi", size: 192 },
+    { name: "Play Store", size: 512 },
   ];
 
   return (
@@ -221,10 +240,15 @@ function IconPreview({ config, canvasRef }: Props) {
           {androidSizes.slice(0, 5).map(({ name, size }, index) => {
             const displaySize = Math.max(32, size / 3.5);
             return (
-              <div key={name} className="flex flex-col items-center gap-2 group/size">
+              <div
+                key={name}
+                className="flex flex-col items-center gap-2 group/size"
+              >
                 <div className="rounded-xl p-1 group-hover/size:border-primary/30 transition-colors">
                   <canvas
-                    ref={(el) => { smallCanvasRefs.current[index] = el; }}
+                    ref={(el) => {
+                      smallCanvasRefs.current[index] = el;
+                    }}
                     width={size}
                     height={size}
                     style={{ width: displaySize, height: displaySize }}
@@ -232,8 +256,12 @@ function IconPreview({ config, canvasRef }: Props) {
                   />
                 </div>
                 <div className="flex flex-col items-center">
-                  <span className="text-[11px] text-foreground font-bold tracking-tight uppercase">{name}</span>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">{size}px</span>
+                  <span className="text-[11px] text-foreground font-bold tracking-tight uppercase">
+                    {name}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    {size}px
+                  </span>
                 </div>
               </div>
             );

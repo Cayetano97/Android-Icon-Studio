@@ -1,8 +1,10 @@
-import React, { useRef, useEffect, memo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { IconConfig, IconShape } from '@/types/icon';
-import { Circle, Square, RectangleHorizontal, Ban } from 'lucide-react';
-import ColorPicker from 'react-best-gradient-color-picker';
+import React, { useRef, useEffect, memo, useState } from "react";
+import { createPortal } from "react-dom";
+import { IconConfig, IconShape } from "@/types/icon";
+import { Circle, Square, RectangleHorizontal, Ban } from "lucide-react";
+import ColorPicker, { useColorPicker } from "react-best-gradient-color-picker";
+import { DegreePicker } from "./DegreePicker";
+import { ArrowUpRight, CircleDot, Trash2 } from "lucide-react";
 
 interface Props {
   config: IconConfig;
@@ -10,10 +12,10 @@ interface Props {
 }
 
 const shapes: { value: IconShape; label: string; icon: typeof Circle }[] = [
-  { value: 'circle', label: 'Circle', icon: Circle },
-  { value: 'squircle', label: 'Squircle', icon: RectangleHorizontal },
-  { value: 'square', label: 'Square', icon: Square },
-  { value: 'none', label: 'None', icon: Ban },
+  { value: "circle", label: "Circle", icon: Circle },
+  { value: "squircle", label: "Squircle", icon: RectangleHorizontal },
+  { value: "square", label: "Square", icon: Square },
+  { value: "none", label: "None", icon: Ban },
 ];
 
 // ---------------------------------------------------------------------------
@@ -26,7 +28,7 @@ function extractFirstColor(css: string): string {
   if (rgbaMatch) return rgbaMatch[0];
   const hexMatch = css.match(/#[0-9a-fA-F]{3,8}/);
   if (hexMatch) return hexMatch[0];
-  return 'rgba(99,102,241,1)';
+  return "rgba(99,102,241,1)";
 }
 
 /** Given a solid colour string, wrap into a pleasant default gradient */
@@ -54,13 +56,31 @@ interface PopoverColorPickerProps {
 
 const PICKER_WIDTH = 270;
 
-function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: PopoverColorPickerProps) {
+function PopoverColorPicker({
+  label,
+  value,
+  onChange,
+  solidOnly,
+  idSuffix,
+}: PopoverColorPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
   const swatchRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  const isGradient = value.includes('gradient');
+  const {
+    degrees,
+    setDegrees,
+    gradientType,
+    setLinear,
+    setRadial,
+    selectedPoint,
+    deletePoint,
+    currentLeft,
+    setPointLeft,
+  } = useColorPicker(value, onChange);
+
+  const isGradient = value.includes("gradient");
 
   function computePosition() {
     if (!swatchRef.current) return;
@@ -68,7 +88,7 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
     const margin = 8;
     const sidebarWidth = 384; // w-96 in Tailwind
     const isDesktop = window.innerWidth >= 1024; // lg breakpoint
-    
+
     let left;
     if (isDesktop) {
       // On desktop, place it exactly to the right of the sidebar
@@ -80,15 +100,18 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
         left = rect.right - PICKER_WIDTH;
       }
     }
-    
+
     // Safety clamp for horizontal bounds
-    left = Math.max(margin, Math.min(left, window.innerWidth - PICKER_WIDTH - margin));
-    
+    left = Math.max(
+      margin,
+      Math.min(left, window.innerWidth - PICKER_WIDTH - margin),
+    );
+
     // Vertical position
     let top;
     // Use actual height if available, otherwise estimate
     const height = popoverRef.current?.offsetHeight || 450;
-    
+
     if (isDesktop) {
       // On desktop, center the picker vertically relative to the swatch
       top = rect.top + rect.height / 2 - height / 2;
@@ -96,31 +119,37 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
       // On mobile, keep it below the swatch
       top = rect.bottom + margin;
     }
-    
+
     // Safety clamp for vertical bounds
     top = Math.max(margin, Math.min(top, window.innerHeight - height - margin));
-    
-    setPopoverStyle({ position: 'fixed', top, left, width: PICKER_WIDTH, zIndex: 9999 });
+
+    setPopoverStyle({
+      position: "fixed",
+      top,
+      left,
+      width: PICKER_WIDTH,
+      zIndex: 9999,
+    });
   }
 
   // Keep popover in sync if the user resizes/scrolls while it is open
   useEffect(() => {
     if (!isOpen) return;
-    
+
     // Initial compute
     computePosition();
-    
+
     // Re-compute after a tiny delay to ensure height is captured if it changed during render
     const timer = setTimeout(computePosition, 0);
-    
-    window.addEventListener('resize', computePosition);
-    window.addEventListener('scroll', computePosition, true);
+
+    window.addEventListener("resize", computePosition);
+    window.addEventListener("scroll", computePosition, true);
     return () => {
       clearTimeout(timer);
-      window.removeEventListener('resize', computePosition);
-      window.removeEventListener('scroll', computePosition, true);
+      window.removeEventListener("resize", computePosition);
+      window.removeEventListener("scroll", computePosition, true);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   useEffect(() => {
@@ -134,8 +163,8 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
         setIsOpen(false);
       }
     }
-    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
   function handleModeSwitch(toGradient: boolean) {
@@ -148,9 +177,7 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
   }
 
   return (
-    <div
-      className="bg-card/30 backdrop-blur-sm border border-border/40 p-3 rounded-2xl flex flex-col items-center gap-1.5 group relative"
-    >
+    <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-3 rounded-2xl flex flex-col items-center gap-1.5 group relative">
       <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
         {label}
       </label>
@@ -164,7 +191,7 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
           // Compute position BEFORE opening so the first render already has
           // the correct fixed coordinates (React 18 batches both setState calls).
           if (!isOpen) computePosition();
-          setIsOpen(prev => !prev);
+          setIsOpen((prev) => !prev);
         }}
       />
 
@@ -175,8 +202,8 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
             onClick={() => handleModeSwitch(false)}
             className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full transition-all ${
               !isGradient
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Solid
@@ -185,8 +212,8 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
             onClick={() => handleModeSwitch(true)}
             className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full transition-all ${
               isGradient
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Gradient
@@ -195,28 +222,87 @@ function PopoverColorPicker({ label, value, onChange, solidOnly, idSuffix }: Pop
       )}
 
       {/* Popover — fixed positioning so it never overflows the viewport */}
-      {isOpen && createPortal(
-        <div
-          ref={popoverRef}
-          style={popoverStyle}
-          className="rounded-2xl shadow-2xl overflow-hidden border border-white/10"
-        >
-          <ColorPicker
-            value={value}
-            onChange={onChange}
-            width={250}
-            hideColorTypeBtns={solidOnly ?? !isGradient}
-            hidePresets={false}
-            hideEyeDrop={false}
-            hideAdvancedSliders={true}
-            hideColorGuide={true}
-            hideInputType={true}
-            disableLightMode={true}
-            idSuffix={idSuffix}
-          />
-        </div>,
-        document.body
-      )}
+      {isOpen &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            style={popoverStyle}
+            className="rounded-2xl shadow-2xl overflow-hidden border border-white/10"
+          >
+            {isGradient && (
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 border-b border-white/10">
+                {/* Mode Toggles */}
+                <div className="flex bg-zinc-800 rounded-lg p-0.5 border border-white/5">
+                  <button
+                    onClick={setLinear}
+                    title="Linear Gradient"
+                    className={`p-1 rounded-md transition-all ${gradientType === "linear-gradient" ? "bg-zinc-700 text-primary shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+                  >
+                    <ArrowUpRight size={14} />
+                  </button>
+                  <button
+                    onClick={setRadial}
+                    title="Radial Gradient"
+                    className={`p-1 rounded-md transition-all ${gradientType === "radial-gradient" ? "bg-zinc-700 text-primary shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+                  >
+                    <CircleDot size={14} />
+                  </button>
+                </div>
+
+                {/* Divider */}
+                <div className="w-[1px] h-4 bg-white/10" />
+
+                {/* Angle (DegreePicker) */}
+                {gradientType === "linear-gradient" && (
+                  <>
+                    <DegreePicker
+                      size="small"
+                      degrees={degrees}
+                      onChange={setDegrees}
+                    />
+                    <div className="w-[1px] h-4 bg-white/10" />
+                  </>
+                )}
+
+                {/* Stop Position */}
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                    Stop
+                  </span>
+                  <input
+                    type="number"
+                    value={Math.round(currentLeft)}
+                    onChange={(e) => setPointLeft(Number(e.target.value))}
+                    className="w-10 bg-zinc-800 border border-white/5 rounded px-1 py-0.5 text-[10px] font-mono text-center focus:outline-none focus:border-primary/50 text-foreground"
+                  />
+                  <button
+                    onClick={() => deletePoint(selectedPoint)}
+                    title="Delete Color Stop"
+                    className="p-1.5 rounded-lg bg-zinc-800 border border-white/5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <ColorPicker
+              value={value}
+              onChange={onChange}
+              width={250}
+              hideColorTypeBtns={true} // Hidden because we have our own
+              hideControls={true} // Hide the entire default bar
+              hidePresets={false}
+              hideEyeDrop={false}
+              hideAdvancedSliders={true}
+              hideColorGuide={true}
+              hideInputType={true}
+              disableLightMode={true}
+              idSuffix={idSuffix}
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -251,7 +337,9 @@ function IconCustomizer({ config, onChange }: Props) {
 
       {/* Shape Section */}
       <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-3">
-        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">Container Shape</label>
+        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">
+          Container Shape
+        </label>
         <div className="grid grid-cols-4 gap-1.5">
           {shapes.map(({ value, label, icon: Icon }) => (
             <button
@@ -259,8 +347,8 @@ function IconCustomizer({ config, onChange }: Props) {
               onClick={() => onChange({ shape: value })}
               className={`flex flex-col items-center gap-1.5 py-2 px-1 rounded-xl text-[10px] font-bold uppercase tracking-tighter transition-all border ${
                 config.shape === value
-                  ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_20px_-5px_hsla(var(--primary),0.4)] scale-105'
-                  : 'bg-background/40 text-muted-foreground border-border/50 hover:bg-accent/40'
+                  ? "bg-primary text-primary-foreground border-primary shadow-[0_0_20px_-5px_hsla(var(--primary),0.4)] scale-105"
+                  : "bg-background/40 text-muted-foreground border-border/50 hover:bg-accent/40"
               }`}
             >
               <Icon size={18} />
@@ -274,8 +362,12 @@ function IconCustomizer({ config, onChange }: Props) {
       <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-4">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Padding Adjustment</label>
-            <span className="text-xs font-bold text-primary">{config.padding}%</span>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              Padding Adjustment
+            </label>
+            <span className="text-xs font-bold text-primary">
+              {config.padding}%
+            </span>
           </div>
           <input
             type="range"
