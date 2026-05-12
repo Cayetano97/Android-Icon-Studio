@@ -39,11 +39,11 @@ export default function Index() {
             <img
               src="/ic_launcher.svg"
               alt="Android Icon Studio Logo"
-              className="w-8 h-8 drop-shadow-sm"
+              className="size-8 drop-shadow-sm"
             />
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold text-foreground tracking-tight">
+            <h1 className="text-lg font-semibold text-foreground tracking-tight">
               Android Icon Studio
             </h1>
           </div>
@@ -73,6 +73,15 @@ export default function Index() {
           <div
             className="fixed inset-0 bg-foreground/20 z-20 lg:hidden"
             onClick={() => setSidebarOpen(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setSidebarOpen(false);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label="Close sidebar"
           />
         )}
 
@@ -87,14 +96,14 @@ export default function Index() {
         >
           <div className="flex-1 p-4 space-y-8">
             <section>
-              <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-4 px-1">
+              <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 px-1">
                 Icon Source
               </h2>
               <IconSourcePanel config={config} onChange={updateConfig} />
             </section>
 
             <section>
-              <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-4 px-1">
+              <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 px-1">
                 Customization
               </h2>
               <IconCustomizer config={config} onChange={updateConfig} />

@@ -162,9 +162,9 @@ export default function IconSourcePanel({ config, onChange }: Props) {
 
         <TabsContent value="text" className="space-y-4 outline-none mt-0">
           <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-5 rounded-2xl space-y-4">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">
               Icon Text
-            </label>
+            </span>
             <Input
               value={config.text}
               onChange={(e) => onChange({ text: e.target.value.slice(0, 5) })}
@@ -189,9 +189,9 @@ export default function IconSourcePanel({ config, onChange }: Props) {
           </div>
 
           <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-5 rounded-2xl space-y-4">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">
               Font
-            </label>
+            </span>
             <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin">
               {SUPPORTED_FONTS.map((font) => (
                 <button
@@ -215,9 +215,9 @@ export default function IconSourcePanel({ config, onChange }: Props) {
 
           <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-5 rounded-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
                 Font Weight
-              </label>
+              </span>
               <span className="text-xs font-bold text-primary">
                 {config.fontWeight}
               </span>
@@ -276,7 +276,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
                   <img
                     src={config.imageDataUrl}
                     alt="Preview"
-                    className="relative w-32 h-32 object-contain rounded-2xl border border-border/40 bg-background/40"
+                    className="relative size-32 object-contain rounded-2xl border border-border/40 bg-background/40"
                   />
                 </div>
                 <button

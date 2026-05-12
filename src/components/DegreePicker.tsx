@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 interface DegreePickerProps {
   degrees: number;
@@ -13,8 +13,14 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(isDragging);
 
-  const calculateAngle = React.useCallback(
+  // Keep ref in sync with state so event handlers always read latest value
+  useEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
+
+  const calculateAngle = useCallback(
     (clientX: number, clientY: number) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
@@ -35,6 +41,12 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
     [onChange],
   );
 
+  // Keep a ref to the latest calculateAngle so it doesn't need to be in useEffect deps
+  const calculateAngleRef = useRef(calculateAngle);
+  useEffect(() => {
+    calculateAngleRef.current = calculateAngle;
+  }, [calculateAngle]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -43,8 +55,8 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
-        calculateAngle(e.clientX, e.clientY);
+      if (isDraggingRef.current) {
+        calculateAngleRef.current(e.clientX, e.clientY);
       }
     };
 
@@ -61,7 +73,23 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, calculateAngle]);
+  }, [isDragging]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsDragging(true);
+      // Use center of the container as default angle
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        calculateAngle(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
+    }
+  };
+
+  const handleKeyUp = () => {
+    setIsDragging(false);
+  };
 
   const isSmall = size === "small";
 
@@ -72,8 +100,13 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
       <div
         ref={containerRef}
         onMouseDown={handleMouseDown}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
+        tabIndex={0}
+        role="button"
+        aria-label={`Rotate to ${degrees} degrees`}
         className={`relative rounded-full bg-zinc-800 border border-zinc-700 shadow-inner flex items-center justify-center cursor-pointer group ${
-          isSmall ? "w-8 h-8" : "w-20 h-20 border-2"
+          isSmall ? "size-8" : "size-20 border-2"
         }`}
       >
         {/* Decorative notches */}
@@ -91,7 +124,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
 
         {/* Center pivot */}
         <div
-          className={`${isSmall ? "w-1 h-1" : "w-2 h-2"} rounded-full bg-zinc-600 z-10 shadow-sm`}
+          className={`${isSmall ? "size-1" : "size-2"} rounded-full bg-zinc-600 z-10 shadow-sm`}
         />
 
         {/* Indicator */}
@@ -111,7 +144,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
           {/* Arrow/Handle */}
           <div
             className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary border border-zinc-900 shadow-[0_0_10px_rgba(var(--primary),0.6)] group-hover:scale-110 transition-transform ${
-              isSmall ? "w-2.5 h-2.5" : "w-4 h-4 border-2"
+              isSmall ? "size-2.5" : "size-4 border-2"
             }`}
           />
         </div>

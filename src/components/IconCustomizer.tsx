@@ -149,7 +149,6 @@ function PopoverColorPicker({
       window.removeEventListener("resize", computePosition);
       window.removeEventListener("scroll", computePosition, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   useEffect(() => {
@@ -178,21 +177,31 @@ function PopoverColorPicker({
 
   return (
     <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-3 rounded-2xl flex flex-col items-center gap-1.5 group relative">
-      <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
         {label}
-      </label>
+      </span>
 
       {/* Swatch / preview */}
       <div
         ref={swatchRef}
         style={{ background: value }}
-        className="w-10 h-10 rounded-xl border border-border/40 shadow-inner cursor-pointer transition-transform hover:scale-105"
+        className="size-10 rounded-xl border border-border/40 shadow-inner cursor-pointer transition-transform hover:scale-105"
         onClick={() => {
           // Compute position BEFORE opening so the first render already has
           // the correct fixed coordinates (React 18 batches both setState calls).
           if (!isOpen) computePosition();
           setIsOpen((prev) => !prev);
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (!isOpen) computePosition();
+            setIsOpen((prev) => !prev);
+          }
+        }}
+        tabIndex={0}
+        role="button"
+        aria-label={`Open ${label} color picker`}
       />
 
       {/* Solid / Gradient toggle — only for background picker */}
@@ -337,9 +346,9 @@ function IconCustomizer({ config, onChange }: Props) {
 
       {/* Shape Section */}
       <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-3">
-        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">
           Container Shape
-        </label>
+        </span>
         <div className="grid grid-cols-4 gap-1.5">
           {shapes.map(({ value, label, icon: Icon }) => (
             <button
@@ -362,7 +371,10 @@ function IconCustomizer({ config, onChange }: Props) {
       <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-4">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+            <label
+              htmlFor="padding-adjustment"
+              className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
+            >
               Padding Adjustment
             </label>
             <span className="text-xs font-bold text-primary">
@@ -370,6 +382,7 @@ function IconCustomizer({ config, onChange }: Props) {
             </span>
           </div>
           <input
+            id="padding-adjustment"
             type="range"
             min={5}
             max={45}

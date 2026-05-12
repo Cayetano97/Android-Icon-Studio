@@ -1,6 +1,5 @@
 export type IconSource = "clipart" | "text" | "image";
 export type IconShape = "circle" | "square" | "squircle" | "none";
-export type GradientDirection = "to bottom" | "to right" | "to bottom right" | "to bottom left" | "to top" | "to top right";
 
 export interface GradientStop {
   color: string;

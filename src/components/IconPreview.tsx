@@ -28,10 +28,11 @@ import { applyCanvasBackground } from "@/lib/canvasGradient";
 function IconPreview({ config, canvasRef }: Props) {
   const previewSize = 512;
   const iconImgRef = useRef<HTMLImageElement | null>(null);
-  const [isIconLoaded, setIsIconLoaded] = useState(false);
+  const iconLoadedRef = useRef(false);
   const lastClipartRef = useRef<string | null>(null);
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const smallCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+  const scheduleDrawRef = useRef<(() => void) | null>(null);
 
   // Pre-load icon, image or font for efficient rendering
   useEffect(() => {
@@ -41,7 +42,7 @@ function IconPreview({ config, canvasRef }: Props) {
 
       const Icon = (LucideIcons as any)[config.clipartName];
       if (Icon) {
-        setIsIconLoaded(false);
+        iconLoadedRef.current = false;
         try {
           const svgMarkup = renderToStaticMarkup(
             <Icon size={previewSize} color="#000000" strokeWidth={1.5} />,
@@ -52,8 +53,9 @@ function IconPreview({ config, canvasRef }: Props) {
           img.onload = () => {
             iconImgRef.current = img;
             lastClipartRef.current = config.clipartName;
-            setIsIconLoaded(true);
+            iconLoadedRef.current = true;
             URL.revokeObjectURL(url);
+            scheduleDrawRef.current?.();
           };
           img.src = url;
         } catch (e) {
@@ -64,12 +66,13 @@ function IconPreview({ config, canvasRef }: Props) {
       if (lastClipartRef.current === config.imageDataUrl && iconImgRef.current)
         return;
 
-      setIsIconLoaded(false);
+      iconLoadedRef.current = false;
       const img = new Image();
       img.onload = () => {
         iconImgRef.current = img;
         lastClipartRef.current = config.imageDataUrl;
-        setIsIconLoaded(true);
+        iconLoadedRef.current = true;
+        scheduleDrawRef.current?.();
       };
       img.src = config.imageDataUrl;
     } else if (config.source === "text") {
@@ -84,25 +87,27 @@ function IconPreview({ config, canvasRef }: Props) {
       }
 
       if (link.href !== fontUrl) {
-        setIsIconLoaded(false);
+        iconLoadedRef.current = false;
         link.href = fontUrl;
 
         document.fonts
           .load(`${config.fontWeight} 16px "${config.fontFamily}"`)
           .then(() => {
-            setIsIconLoaded(true);
+            iconLoadedRef.current = true;
+            scheduleDrawRef.current?.();
           })
           .catch((err) => {
             console.error("Font loading failed:", err);
-            setIsIconLoaded(true);
+            iconLoadedRef.current = true;
+            scheduleDrawRef.current?.();
           });
       } else {
-        setIsIconLoaded(true);
+        iconLoadedRef.current = true;
       }
     } else {
       iconImgRef.current = null;
       lastClipartRef.current = null;
-      setIsIconLoaded(false);
+      iconLoadedRef.current = false;
     }
   }, [
     config.clipartName,
@@ -151,13 +156,13 @@ function IconPreview({ config, canvasRef }: Props) {
     } else if (
       config.source === "image" &&
       iconImgRef.current &&
-      isIconLoaded
+      iconLoadedRef.current
     ) {
       ctx.drawImage(iconImgRef.current, padding, padding, innerSize, innerSize);
     } else if (
       config.source === "clipart" &&
       iconImgRef.current &&
-      isIconLoaded
+      iconLoadedRef.current
     ) {
       if (!offscreenCanvasRef.current) {
         offscreenCanvasRef.current = document.createElement("canvas");
@@ -194,7 +199,7 @@ function IconPreview({ config, canvasRef }: Props) {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, canvasRef, isIconLoaded]);
+  }, [config, canvasRef]);
 
   const scheduleDraw = useCallback(() => {
     if (rafIdRef.current !== null) return;
@@ -203,6 +208,9 @@ function IconPreview({ config, canvasRef }: Props) {
       drawNow();
     });
   }, [drawNow]);
+
+  // Store scheduleDraw in a ref so it can be called from onload handlers
+  scheduleDrawRef.current = scheduleDraw;
 
   useEffect(() => {
     scheduleDraw();
@@ -233,7 +241,7 @@ function IconPreview({ config, canvasRef }: Props) {
             ref={canvasRef}
             width={previewSize}
             height={previewSize}
-            className="relative w-40 h-40 md:w-64 md:h-64 lg:w-[320px] lg:h-[320px] drop-shadow-2xl transition-all duration-500 group-hover:scale-[1.03] group-hover:-rotate-1"
+            className="relative size-40 md:size-64 lg:size-[320px] drop-shadow-2xl transition-all duration-500 group-hover:scale-[1.03] group-hover:-rotate-1"
           />
         </div>
       </div>

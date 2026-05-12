@@ -332,15 +332,20 @@ export async function downloadAndroidIcons(
     { folder: "mipmap-xxxhdpi", size: 192 },
   ];
 
-  // res/ folder with density buckets
+  // res/ folder with density buckets — generate all blobs concurrently
   const resFolder = zip.folder("res")!;
-  for (const { folder, size } of densities) {
-    const c = document.createElement("canvas");
-    c.width = size;
-    c.height = size;
-    const cx = c.getContext("2d")!;
-    cx.drawImage(canvas, 0, 0, size, size);
-    const blob = await canvasToBlob(c);
+  const canvasBlobs = await Promise.all(
+    densities.map(async ({ folder, size }) => {
+      const c = document.createElement("canvas");
+      c.width = size;
+      c.height = size;
+      const cx = c.getContext("2d")!;
+      cx.drawImage(canvas, 0, 0, size, size);
+      const blob = await canvasToBlob(c);
+      return { folder, blob };
+    }),
+  );
+  for (const { folder, blob } of canvasBlobs) {
     resFolder.folder(folder)!.file("ic_launcher.png", blob);
   }
 
