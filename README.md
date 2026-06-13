@@ -18,20 +18,19 @@
 
 ## Tech Stack
 
-| Technology                          | Purpose                                | Version |
-| :---------------------------------- | :------------------------------------- | :------ |
-| **React**                           | Core UI library                        | 19.2.5  |
-| **Vite**                            | Build tool and development environment | 8.0.10  |
-| **TypeScript**                      | Robust development and typing          | 6.0.3   |
-| **Tailwind CSS**                    | Modern styling and layout              | 4.2.4   |
-| **Lucide React**                    | Minimalist iconography                 | 1.11.0  |
-| **Radix UI**                        | Tabs and Tooltip components            | 1.2.4+  |
-| **TanStack Query**                  | Efficient data fetching and state      | 5.100.5 |
-| **React Router**                    | Routing and navigation                 | 7.14.2  |
-| **JSZip**                           | ZIP file generation for exports        | 3.10.1  |
-| **File Saver**                      | Client-side file saving                | 2.0.5   |
-| **Sonner**                          | Toast notifications                    | 2.0.7   |
-| **React Best Gradient Color Picker** | Advanced gradient customization        | 3.0.14  |
+| Technology                            | Purpose                                | Version  |
+| :------------------------------------ | :------------------------------------- | :------- |
+| **React**                             | Core UI library                        | ^19.2.7  |
+| **Vite**                              | Build tool and development environment | ^8.0.16  |
+| **TypeScript**                        | Robust development and typing          | ^6.0.3   |
+| **Tailwind CSS**                      | Modern styling and layout              | ^4.3.1   |
+| **Lucide React**                      | Minimalist iconography                 | ^1.18.0  |
+| **Radix UI**                          | Tabs components                        | ^1.1.14  |
+| **JSZip**                             | ZIP file generation for exports        | ^3.10.1  |
+| **File Saver**                        | Client-side file saving                | ^2.0.5   |
+| **React Best Gradient Color Picker**  | Advanced gradient customization        | ^3.0.14  |
+| **clsx**                              | Conditional className utility          | ^2.1.1   |
+| **tailwind-merge**                    | Intelligent Tailwind class merging     | ^3.6.0   |
 
 ## Getting Started
 
