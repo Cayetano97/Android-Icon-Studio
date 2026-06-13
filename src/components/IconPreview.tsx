@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState, memo } from "react";
+import { useRef, useEffect, useCallback, memo } from "react";
 import { IconConfig } from "@/types/icon";
 import * as LucideIcons from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 interface Props {
   config: IconConfig;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  onIconSvg?: (svg: string) => void;
 }
 
 function getClipPath(shape: IconConfig["shape"], size: number): Path2D {
@@ -25,16 +26,19 @@ function getClipPath(shape: IconConfig["shape"], size: number): Path2D {
 
 import { applyCanvasBackground } from "@/lib/canvasGradient";
 
-function IconPreview({ config, canvasRef }: Props) {
+function IconPreview({ config, canvasRef, onIconSvg }: Props) {
   const previewSize = 512;
+  const padding = (config.padding / 100) * previewSize;
+  const innerSize = previewSize - padding * 2;
   const iconImgRef = useRef<HTMLImageElement | null>(null);
   const iconLoadedRef = useRef(false);
   const lastClipartRef = useRef<string | null>(null);
+  const lastColorRef = useRef<string>("");
+  const lastIconSvgRef = useRef<string>("");
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const smallCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const scheduleDrawRef = useRef<(() => void) | null>(null);
 
-  // Pre-load icon, image or font for efficient rendering
   useEffect(() => {
     if (config.source === "clipart") {
       if (lastClipartRef.current === config.clipartName && iconImgRef.current)
@@ -47,6 +51,14 @@ function IconPreview({ config, canvasRef }: Props) {
           const svgMarkup = renderToStaticMarkup(
             <Icon size={previewSize} color="#000000" strokeWidth={1.5} />,
           );
+          lastIconSvgRef.current = svgMarkup;
+
+          const exportSvg = renderToStaticMarkup(
+            <Icon size={innerSize} color={config.foregroundColor} strokeWidth={1.5} />,
+          );
+          onIconSvg?.(exportSvg);
+          lastColorRef.current = config.foregroundColor;
+
           const img = new Image();
           const blob = new Blob([svgMarkup], { type: "image/svg+xml" });
           const url = URL.createObjectURL(blob);
@@ -115,7 +127,27 @@ function IconPreview({ config, canvasRef }: Props) {
     config.imageDataUrl,
     config.fontFamily,
     config.fontWeight,
+    onIconSvg,
   ]);
+
+  useEffect(() => {
+    if (config.source !== "clipart") return;
+    const Icon = (LucideIcons as any)[config.clipartName];
+    if (!Icon) return;
+    const exportSvg = renderToStaticMarkup(
+      <Icon size={innerSize} color={config.foregroundColor} strokeWidth={1.5} />,
+    );
+    onIconSvg?.(exportSvg);
+  }, [config.foregroundColor, config.source, config.clipartName, config.padding, onIconSvg, innerSize]);
+
+  const androidSizes = [
+    { name: "mdpi", size: 48 },
+    { name: "hdpi", size: 72 },
+    { name: "xhdpi", size: 96 },
+    { name: "xxhdpi", size: 144 },
+    { name: "xxxhdpi", size: 192 },
+    { name: "Play Store", size: 512 },
+  ];
 
   const rafIdRef = useRef<number | null>(null);
 
@@ -209,8 +241,9 @@ function IconPreview({ config, canvasRef }: Props) {
     });
   }, [drawNow]);
 
-  // Store scheduleDraw in a ref so it can be called from onload handlers
-  scheduleDrawRef.current = scheduleDraw;
+  useEffect(() => {
+    scheduleDrawRef.current = scheduleDraw;
+  }, [scheduleDraw]);
 
   useEffect(() => {
     scheduleDraw();
@@ -222,18 +255,8 @@ function IconPreview({ config, canvasRef }: Props) {
     };
   }, [scheduleDraw]);
 
-  const androidSizes = [
-    { name: "mdpi", size: 48 },
-    { name: "hdpi", size: 72 },
-    { name: "xhdpi", size: 96 },
-    { name: "xxhdpi", size: 144 },
-    { name: "xxxhdpi", size: 192 },
-    { name: "Play Store", size: 512 },
-  ];
-
   return (
     <div className="flex flex-col h-full w-full">
-      {/* Main Preview Area */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-12 min-h-0">
         <div className="relative group">
           <div className="absolute -inset-10 bg-primary/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
@@ -246,7 +269,6 @@ function IconPreview({ config, canvasRef }: Props) {
         </div>
       </div>
 
-      {/* Density Preview Footer */}
       <div className="w-full px-6 pb-8 pt-2">
         <div className="max-w-4xl mx-auto flex items-end gap-6 md:gap-10 flex-wrap justify-center p-6 bg-card/40 backdrop-blur-xl rounded-[2.5rem] border border-border/50 shadow-2xl ring-1 ring-white/10">
           {androidSizes.slice(0, 5).map(({ name, size }, index) => {

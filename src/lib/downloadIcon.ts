@@ -1,9 +1,45 @@
 import { IconConfig } from "@/types/icon";
-import * as LucideIcons from "lucide-react";
-import { renderToStaticMarkup } from "react-dom/server";
-import React from "react";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { parseCssGradient } from "@/lib/canvasGradient";
+
+function svgColor(color: string): { color: string; opacity: number } {
+  const m = color.match(
+    /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)/,
+  );
+  if (m) {
+    const r = parseInt(m[1]);
+    const g = parseInt(m[2]);
+    const b = parseInt(m[3]);
+    const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+    const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+    return { color: hex, opacity: a };
+  }
+  return { color, opacity: 1 };
+}
+
+function loadImageFromSvg(svgString: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const blob = new Blob([svgString], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
 
 function getShapeSvgClip(shape: IconConfig["shape"], size: number): string {
   if (shape === "circle") {
@@ -12,9 +48,11 @@ function getShapeSvgClip(shape: IconConfig["shape"], size: number): string {
   } else if (shape === "square") {
     const radius = size * 0.08;
     return `<clipPath id="shape"><rect width="${size}" height="${size}" rx="${radius}"/></clipPath>`;
-  } else {
+  } else if (shape === "squircle") {
     const radius = size * 0.22;
     return `<clipPath id="shape"><rect width="${size}" height="${size}" rx="${radius}"/></clipPath>`;
+  } else {
+    return `<clipPath id="shape"><rect width="${size}" height="${size}"/></clipPath>`;
   }
 }
 
@@ -25,9 +63,11 @@ function getShapeSvgPath(shape: IconConfig["shape"], size: number): string {
   } else if (shape === "square") {
     const radius = size * 0.08;
     return `<rect width="${size}" height="${size}" rx="${radius}"`;
-  } else {
+  } else if (shape === "squircle") {
     const radius = size * 0.22;
     return `<rect width="${size}" height="${size}" rx="${radius}"`;
+  } else {
+    return `<rect width="${size}" height="${size}"`;
   }
 }
 
@@ -40,96 +80,37 @@ function buildSvgGradientDef(
     return { defs: "", fillRef: bg };
   }
 
-  const innerMatch = bg.match(/-gradient\((.*)\)$/);
-  if (!innerMatch) {
+  const parsed = parseCssGradient(bg);
+  if (!parsed) {
     return { defs: "", fillRef: bg };
   }
 
-  const inner = innerMatch[1];
-  const parts = inner.split(/,(?![^\(]*\))/).map((x) => x.trim());
-  let angleParam = parts[0];
-  let angle = 180;
-  let stopsList = parts.slice(1);
+  const hw = size / 2;
+  const hh = size / 2;
 
-  if (angleParam.includes("deg")) {
-    angle = parseFloat(angleParam) || 0;
-  } else if (angleParam.includes("to ")) {
-    // rudimentary mappings
-    const dir = angleParam.trim();
-    if (dir === "to top") angle = 0;
-    else if (dir === "to right") angle = 90;
-    else if (dir === "to bottom") angle = 180;
-    else if (dir === "to left") angle = 270;
-    else if (dir === "to top right") angle = 45;
-    else if (dir === "to bottom right") angle = 135;
-    else if (dir === "to bottom left") angle = 225;
-    else if (dir === "to top left") angle = 315;
-  } else {
-    stopsList = parts;
+  const formatStop = (stop: { color: string; position: number }) => {
+    const posStr = Number.isFinite(stop.position) ? ` offset="${stop.position}%"` : "";
+    const { color, opacity } = svgColor(stop.color);
+    const opacityAttr = opacity < 1 ? ` stop-opacity="${opacity}"` : "";
+    return `    <stop${posStr} stop-color="${color}"${opacityAttr}/>`;
+  };
+
+  if (parsed.type === "linear") {
+    const angleRad = (parsed.angle - 90) * (Math.PI / 180);
+    const distance = Math.sqrt(hw * hw + hh * hh);
+    const x1 = Math.round(hw + Math.cos(angleRad) * distance);
+    const y1 = Math.round(hh + Math.sin(angleRad) * distance);
+    const x2 = Math.round(hw - Math.cos(angleRad) * distance);
+    const y2 = Math.round(hh - Math.sin(angleRad) * distance);
+
+    const stopTags = parsed.stops.map(formatStop).join("\n");
+    const defs = `<linearGradient id="bgGrad" gradientUnits="userSpaceOnUse" x1="${x2}" y1="${y2}" x2="${x1}" y2="${y1}">\n${stopTags}\n  </linearGradient>`;
+    return { defs, fillRef: "url(#bgGrad)" };
   }
 
-  // Simplified angle to coordinates for SVG linearGradient
-  const rad = (angle - 90) * (Math.PI / 180);
-  const x1 = Math.round(50 + Math.cos(rad + Math.PI) * 50) + "%";
-  const y1 = Math.round(50 + Math.sin(rad + Math.PI) * 50) + "%";
-  const x2 = Math.round(50 + Math.cos(rad) * 50) + "%";
-  const y2 = Math.round(50 + Math.sin(rad) * 50) + "%";
-
-  const stopTags = stopsList
-    .map((stop) => {
-      const sp = stop.split(" ");
-      let posStr = sp.pop() || "";
-      if (!posStr.includes("%")) {
-        sp.push(posStr);
-        posStr = "";
-      }
-      const color = sp.join(" ");
-      return `  <stop offset="${posStr}" stop-color="${color}"/>`;
-    })
-    .join("\n");
-
-  const defs = `<defs>\n<linearGradient id="bgGrad" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">\n${stopTags}\n</linearGradient>\n</defs>`;
+  const stopTags = parsed.stops.map(formatStop).join("\n");
+  const defs = `<radialGradient id="bgGrad" gradientUnits="userSpaceOnUse" cx="${hw}" cy="${hh}" r="${Math.max(hw, hh)}">\n${stopTags}\n  </radialGradient>`;
   return { defs, fillRef: "url(#bgGrad)" };
-}
-
-export function generateSvg(config: IconConfig, size: number = 512): string {
-  const padding = (config.padding / 100) * size;
-  const innerSize = size - padding * 2;
-  const clip = getShapeSvgClip(config.shape, size);
-  const { defs, fillRef } = buildSvgGradientDef(config, size);
-
-  let foregroundContent = "";
-
-  if (config.source === "text") {
-    foregroundContent = `<text x="${size / 2}" y="${size / 2}" fill="${config.foregroundColor}" font-family="Inter, sans-serif" font-weight="${config.fontWeight}" font-size="${innerSize * 0.55}" text-anchor="middle" dominant-baseline="central">${escapeXml(config.text)}</text>`;
-  } else if (config.source === "clipart") {
-    const Icon = (LucideIcons as any)[config.clipartName];
-    if (Icon) {
-      const markup = renderToStaticMarkup(
-        React.createElement(Icon, {
-          size: innerSize,
-          color: config.foregroundColor,
-          strokeWidth: 1.5,
-        }),
-      );
-      foregroundContent = markup.replace(
-        "<svg ",
-        `<svg x="${padding}" y="${padding}" `,
-      );
-    }
-  } else if (config.source === "image" && config.imageDataUrl) {
-    foregroundContent = `<image href="${config.imageDataUrl}" x="${padding}" y="${padding}" width="${innerSize}" height="${innerSize}"/>`;
-  }
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-${defs}
-${clip}
-<g clip-path="url(#shape)">
-  ${getShapeSvgPath(config.shape, size)} fill="${fillRef}"/>
-  ${foregroundContent}
-</g>
-</svg>`;
 }
 
 function escapeXml(str: string): string {
@@ -137,12 +118,52 @@ function escapeXml(str: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+export async function generateSvg(
+  config: IconConfig,
+  size: number = 512,
+  foregroundDataUrl?: string,
+): Promise<string> {
+  const padding = (config.padding / 100) * size;
+  const innerSize = size - padding * 2;
+  const { defs: gradientDef, fillRef } = buildSvgGradientDef(config, size);
+  const clipDef = getShapeSvgClip(config.shape, size);
+
+  const defsParts: string[] = [];
+  if (gradientDef) defsParts.push(gradientDef);
+  if (clipDef) defsParts.push(clipDef);
+  const defsBlock =
+    defsParts.length > 0 ? `<defs>\n${defsParts.join("\n")}\n</defs>` : "";
+
+  let foregroundContent = "";
+
+  if (config.source === "text") {
+    const yOffset = config.fontFamily === "Bebas Neue" ? 4 : 0;
+    foregroundContent = `<text x="${size / 2}" y="${size / 2 + yOffset}" fill="${config.foregroundColor}" font-family="${config.fontFamily}, sans-serif" font-weight="${config.fontWeight}" font-size="${innerSize * 0.5}" text-anchor="middle" dominant-baseline="central">${escapeXml(config.text)}</text>`;
+  } else if (
+    (config.source === "clipart" || config.source === "image") &&
+    foregroundDataUrl
+  ) {
+    foregroundContent = `<image href="${foregroundDataUrl}" x="${padding}" y="${padding}" width="${innerSize}" height="${innerSize}"/>`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+${defsBlock}
+<g clip-path="url(#shape)">
+  ${getShapeSvgPath(config.shape, size)} fill="${fillRef}"/>
+  ${foregroundContent}
+</g>
+</svg>`;
 }
 
 export function generateAndroidVectorDrawable(
   config: IconConfig,
   size: number = 24,
+  iconSvg?: string,
 ): string {
   const viewportSize = 512;
   const padding = (config.padding / 100) * viewportSize;
@@ -150,29 +171,16 @@ export function generateAndroidVectorDrawable(
 
   let pathData = "";
 
-  if (config.source === "clipart") {
-    const Icon = (LucideIcons as any)[config.clipartName];
-    if (Icon) {
-      const markup = renderToStaticMarkup(
-        React.createElement(Icon, {
-          size: innerSize,
-          color: config.foregroundColor,
-          strokeWidth: 1.5,
-        }),
-      );
-      // Extract path d attributes
-      const paths = extractPathsFromSvg(markup, padding);
-      pathData = paths;
-    }
+  if (config.source === "clipart" && iconSvg) {
+    const paths = extractPathsFromSvg(iconSvg, padding);
+    pathData = paths;
   } else if (config.source === "text") {
-    // Text can't easily be converted to vector paths client-side, provide a basic rect placeholder
     pathData = `    <path
         android:pathData="M${padding},${padding}h${innerSize}v${innerSize}h-${innerSize}z"
         android:fillColor="${config.foregroundColor}"/>
     <!-- Note: Text icons should be replaced with actual vector paths for production -->`;
   }
 
-  // Convert shape to Android path
   let bgPath = "";
   if (config.shape === "circle") {
     const r = viewportSize / 2;
@@ -180,27 +188,27 @@ export function generateAndroidVectorDrawable(
   } else if (config.shape === "square") {
     const rad = viewportSize * 0.08;
     bgPath = `M${rad},0L${viewportSize - rad},0Q${viewportSize},0,${viewportSize},${rad}L${viewportSize},${viewportSize - rad}Q${viewportSize},${viewportSize},${viewportSize - rad},${viewportSize}L${rad},${viewportSize}Q0,${viewportSize},0,${viewportSize - rad}L0,${rad}Q0,0,${rad},0Z`;
-  } else {
+  } else if (config.shape === "squircle") {
     const rad = viewportSize * 0.22;
     bgPath = `M${rad},0L${viewportSize - rad},0Q${viewportSize},0,${viewportSize},${rad}L${viewportSize},${viewportSize - rad}Q${viewportSize},${viewportSize},${viewportSize - rad},${viewportSize}L${rad},${viewportSize}Q0,${viewportSize},0,${viewportSize - rad}L0,${rad}Q0,0,${rad},0Z`;
+  } else {
+    bgPath = `M0,0L${viewportSize},0L${viewportSize},${viewportSize}L0,${viewportSize}Z`;
   }
 
-  // Android vector drawables don't natively support gradients before API 24.
-  // We use the start-stop colours as a comment hint and the first stop (or solid colour) as fill.
   const bg = config.background;
   const isGradient = bg.includes("-gradient");
   let bgFill = bg;
   let gradientComment = "";
 
   if (isGradient) {
-    const innerMatch = bg.match(/-gradient\((.*)\)$/);
+    const innerMatch = bg.match(/-gradient\(((?:[^()]+|\([^()]*\))*)\)$/);
     if (innerMatch) {
       const parts = innerMatch[1].split(/,(?![^\(]*\))/).map((x) => x.trim());
       const firstStop = parts.find(
         (p) => p.startsWith("rgb") || p.startsWith("#"),
       );
       if (firstStop) {
-        bgFill = firstStop.split(" ").slice(0, -1).join(" "); // rudimentary color extraction
+        bgFill = firstStop.split(" ").slice(0, -1).join(" ");
         if (!bgFill) bgFill = firstStop;
       }
       gradientComment = `\n    <!-- Gradient used defined by background css: ${bg}. For API 24+ use <gradient> tag instead. -->`;
@@ -223,13 +231,11 @@ ${pathData}
 function extractPathsFromSvg(svgMarkup: string, offset: number): string {
   const results: string[] = [];
 
-  // Extract stroke color from the SVG
   const strokeMatch = svgMarkup.match(/stroke="([^"]+)"/);
   const strokeColor = strokeMatch ? strokeMatch[1] : "#FFFFFF";
   const strokeWidthMatch = svgMarkup.match(/stroke-width="([^"]+)"/);
   const strokeWidth = strokeWidthMatch ? parseFloat(strokeWidthMatch[1]) : 2;
 
-  // Find all path, line, circle, rect, polyline elements
   const pathRegex = /d="([^"]+)"/g;
   let match;
   while ((match = pathRegex.exec(svgMarkup)) !== null) {
@@ -242,7 +248,6 @@ function extractPathsFromSvg(svgMarkup: string, offset: number): string {
         android:translateY="${offset}"/>`);
   }
 
-  // Handle <line> elements
   const lineRegex =
     /<line[^>]*x1="([^"]*)"[^>]*y1="([^"]*)"[^>]*x2="([^"]*)"[^>]*y2="([^"]*)"/g;
   while ((match = lineRegex.exec(svgMarkup)) !== null) {
@@ -255,7 +260,6 @@ function extractPathsFromSvg(svgMarkup: string, offset: number): string {
         android:translateY="${offset}"/>`);
   }
 
-  // Handle <circle> elements
   const circleRegex =
     /<circle[^>]*cx="([^"]*)"[^>]*cy="([^"]*)"[^>]*r="([^"]*)"/g;
   while ((match = circleRegex.exec(svgMarkup)) !== null) {
@@ -271,7 +275,6 @@ function extractPathsFromSvg(svgMarkup: string, offset: number): string {
         android:translateY="${offset}"/>`);
   }
 
-  // Handle <polyline> elements
   const polylineRegex = /<polyline[^>]*points="([^"]*)"/g;
   while ((match = polylineRegex.exec(svgMarkup)) !== null) {
     const points = match[1].trim().split(/\s+/);
@@ -290,7 +293,6 @@ function extractPathsFromSvg(svgMarkup: string, offset: number): string {
     }
   }
 
-  // Handle <rect> elements
   const rectRegex =
     /<rect(?=[^>]*width="([^"]*)")(?=[^>]*height="([^"]*)")(?:[^>]*x="([^"]*)")?(?:[^>]*y="([^"]*)")?[^>]*/g;
   while ((match = rectRegex.exec(svgMarkup)) !== null) {
@@ -298,8 +300,6 @@ function extractPathsFromSvg(svgMarkup: string, offset: number): string {
       h = match[2],
       x = match[3] || "0",
       y = match[4] || "0";
-    const rxMatch = svgMarkup.match(/rx="([^"]*)"/);
-    const rx = rxMatch ? rxMatch[1] : "0";
     results.push(`    <path
         android:pathData="M${x},${y}h${w}v${h}h-${w}z"
         android:strokeColor="${strokeColor}"
@@ -321,51 +321,84 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 export async function downloadAndroidIcons(
   canvas: HTMLCanvasElement,
   config: IconConfig,
+  iconSvg?: string,
 ) {
-  const zip = new JSZip();
+  try {
+    const zip = new JSZip();
 
-  const densities = [
-    { folder: "mipmap-mdpi", size: 48 },
-    { folder: "mipmap-hdpi", size: 72 },
-    { folder: "mipmap-xhdpi", size: 96 },
-    { folder: "mipmap-xxhdpi", size: 144 },
-    { folder: "mipmap-xxxhdpi", size: 192 },
-  ];
+    const densities = [
+      { folder: "mipmap-mdpi", size: 48 },
+      { folder: "mipmap-hdpi", size: 72 },
+      { folder: "mipmap-xhdpi", size: 96 },
+      { folder: "mipmap-xxhdpi", size: 144 },
+      { folder: "mipmap-xxxhdpi", size: 192 },
+    ];
 
-  // res/ folder with density buckets — generate all blobs concurrently
-  const resFolder = zip.folder("res")!;
-  const canvasBlobs = await Promise.all(
-    densities.map(async ({ folder, size }) => {
-      const c = document.createElement("canvas");
-      c.width = size;
-      c.height = size;
-      const cx = c.getContext("2d")!;
-      cx.drawImage(canvas, 0, 0, size, size);
-      const blob = await canvasToBlob(c);
-      return { folder, blob };
-    }),
-  );
-  for (const { folder, blob } of canvasBlobs) {
-    resFolder.folder(folder)!.file("ic_launcher.png", blob);
+    const resFolder = zip.folder("res")!;
+    const canvasBlobs = await Promise.all(
+      densities.map(async ({ folder, size }) => {
+        const c = document.createElement("canvas");
+        c.width = size;
+        c.height = size;
+        const cx = c.getContext("2d")!;
+        cx.drawImage(canvas, 0, 0, size, size);
+        const blob = await canvasToBlob(c);
+        return { folder, blob };
+      }),
+    );
+    for (const { folder, blob } of canvasBlobs) {
+      resFolder.folder(folder)!.file("ic_launcher.png", blob);
+    }
+
+    const playCanvas = document.createElement("canvas");
+    playCanvas.width = 512;
+    playCanvas.height = 512;
+    playCanvas.getContext("2d")!.drawImage(canvas, 0, 0, 512, 512);
+    const playBlob = await canvasToBlob(playCanvas);
+    zip.file("ic_launcher_playstore_512.png", playBlob);
+
+    const svgPadding = (config.padding / 100) * 512;
+    const svgInnerSize = 512 - svgPadding * 2;
+    let foregroundDataUrl: string | undefined;
+
+    if (config.source === "clipart" && iconSvg) {
+      try {
+        const img = await loadImageFromSvg(iconSvg);
+        const fgCanvas = document.createElement("canvas");
+        fgCanvas.width = svgInnerSize;
+        fgCanvas.height = svgInnerSize;
+        const fgCtx = fgCanvas.getContext("2d")!;
+        fgCtx.drawImage(img, 0, 0, svgInnerSize, svgInnerSize);
+        fgCtx.globalCompositeOperation = "source-in";
+        fgCtx.fillStyle = config.foregroundColor;
+        fgCtx.fillRect(0, 0, svgInnerSize, svgInnerSize);
+        foregroundDataUrl = fgCanvas.toDataURL("image/png");
+      } catch (e) {
+        console.error("Failed to render clipart foreground for SVG:", e);
+      }
+    } else if (config.source === "image" && config.imageDataUrl) {
+      try {
+        const img = await loadImage(config.imageDataUrl);
+        const fgCanvas = document.createElement("canvas");
+        fgCanvas.width = svgInnerSize;
+        fgCanvas.height = svgInnerSize;
+        const fgCtx = fgCanvas.getContext("2d")!;
+        fgCtx.drawImage(img, 0, 0, svgInnerSize, svgInnerSize);
+        foregroundDataUrl = fgCanvas.toDataURL("image/png");
+      } catch (e) {
+        console.error("Failed to render image foreground for SVG:", e);
+      }
+    }
+
+    const svg = await generateSvg(config, 512, foregroundDataUrl);
+    zip.file("ic_launcher.svg", svg);
+
+    const xml = generateAndroidVectorDrawable(config, 48, iconSvg);
+    zip.file("ic_launcher.xml", xml);
+
+    const content = await zip.generateAsync({ type: "blob" });
+    saveAs(content, "android-icons.zip");
+  } catch (err) {
+    console.error("Download failed:", err);
   }
-
-  // Play Store 512px in root
-  const playCanvas = document.createElement("canvas");
-  playCanvas.width = 512;
-  playCanvas.height = 512;
-  playCanvas.getContext("2d")!.drawImage(canvas, 0, 0, 512, 512);
-  const playBlob = await canvasToBlob(playCanvas);
-  zip.file("ic_launcher_playstore_512.png", playBlob);
-
-  // SVG in root
-  const svg = generateSvg(config, 512);
-  zip.file("ic_launcher.svg", svg);
-
-  // Android Vector Drawable XML in root
-  const xml = generateAndroidVectorDrawable(config, 48);
-  zip.file("ic_launcher.xml", xml);
-
-  // Generate and save
-  const content = await zip.generateAsync({ type: "blob" });
-  saveAs(content, "android-icons.zip");
 }

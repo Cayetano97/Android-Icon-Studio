@@ -130,6 +130,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
                   if (!Icon) return null;
                   return (
                     <button
+                      type="button"
                       key={name}
                       onClick={() => onChange({ clipartName: name })}
                       aria-label={`Select icon ${name}`}
@@ -195,6 +196,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
             <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin">
               {SUPPORTED_FONTS.map((font) => (
                 <button
+                  type="button"
                   key={font.family}
                   onClick={() => handleFontFamilyChange(font.family)}
                   className={`p-3 rounded-xl border text-sm transition-all text-left flex flex-col gap-1 ${
@@ -280,6 +282,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
                   />
                 </div>
                 <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary hover:text-primary/80 transition-colors"
                 >
@@ -289,6 +292,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full h-full flex flex-col items-center gap-4 text-muted-foreground/60 hover:text-primary transition-all group"
               >
