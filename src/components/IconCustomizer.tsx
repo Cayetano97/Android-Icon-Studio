@@ -373,31 +373,7 @@ function IconCustomizer({ config, onChange }: Props) {
         </div>
       </div>
 
-      {/* Adjustments Section */}
-      <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-4">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label
-              htmlFor="padding-adjustment"
-              className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
-            >
-              Padding Adjustment
-            </label>
-            <span className="text-xs font-bold text-primary">
-              {config.padding}%
-            </span>
-          </div>
-          <input
-            id="padding-adjustment"
-            type="range"
-            min={5}
-            max={45}
-            value={config.padding}
-            onChange={(e) => onChange({ padding: Number(e.target.value) })}
-            className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
-          />
-        </div>
-      </div>
+
     </div>
   );
 }

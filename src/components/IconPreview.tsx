@@ -3,6 +3,32 @@ import { IconConfig } from "@/types/icon";
 import * as LucideIcons from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 
+let _colorCanvas: HTMLCanvasElement | null = null;
+let _colorCtx: CanvasRenderingContext2D | null = null;
+
+function cssColorToHex(color: string): string {
+  if (color.startsWith("#")) {
+    if (color.length === 4) {
+      return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
+    }
+    return color;
+  }
+  if (!_colorCanvas) {
+    _colorCanvas = document.createElement("canvas");
+    _colorCanvas.width = 1;
+    _colorCanvas.height = 1;
+    _colorCtx = _colorCanvas.getContext("2d");
+  }
+  if (!_colorCtx) return color;
+  _colorCtx.fillStyle = "#000000";
+  _colorCtx.fillStyle = color;
+  const computed = _colorCtx.fillStyle;
+  if (computed.startsWith("#") && computed.length === 7) {
+    return computed;
+  }
+  return color;
+}
+
 interface Props {
   config: IconConfig;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -54,7 +80,7 @@ function IconPreview({ config, canvasRef, onIconSvg }: Props) {
           lastIconSvgRef.current = svgMarkup;
 
           const exportSvg = renderToStaticMarkup(
-            <Icon size={innerSize} color={config.foregroundColor} strokeWidth={1.5} />,
+            <Icon size={innerSize} color={cssColorToHex(config.foregroundColor)} strokeWidth={1.5} />,
           );
           onIconSvg?.(exportSvg);
           lastColorRef.current = config.foregroundColor;
@@ -135,7 +161,7 @@ function IconPreview({ config, canvasRef, onIconSvg }: Props) {
     const Icon = (LucideIcons as any)[config.clipartName];
     if (!Icon) return;
     const exportSvg = renderToStaticMarkup(
-      <Icon size={innerSize} color={config.foregroundColor} strokeWidth={1.5} />,
+      <Icon size={innerSize} color={cssColorToHex(config.foregroundColor)} strokeWidth={1.5} />,
     );
     onIconSvg?.(exportSvg);
   }, [config.foregroundColor, config.source, config.clipartName, config.padding, onIconSvg, innerSize]);
@@ -162,6 +188,8 @@ function IconPreview({ config, canvasRef, onIconSvg }: Props) {
       canvas.height = previewSize;
     }
 
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.clearRect(0, 0, previewSize, previewSize);
 
     if (config.shape !== "none") {
@@ -206,6 +234,8 @@ function IconPreview({ config, canvasRef, onIconSvg }: Props) {
       }
       const offCtx = offCanvas.getContext("2d");
       if (offCtx) {
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.imageSmoothingQuality = "high";
         offCtx.clearRect(0, 0, innerSize, innerSize);
         offCtx.save();
         offCtx.drawImage(iconImgRef.current, 0, 0, innerSize, innerSize);
@@ -226,6 +256,8 @@ function IconPreview({ config, canvasRef, onIconSvg }: Props) {
           smallCanvas.width = size;
           smallCanvas.height = size;
         }
+        sCtx.imageSmoothingEnabled = true;
+        sCtx.imageSmoothingQuality = "high";
         sCtx.clearRect(0, 0, size, size);
         sCtx.drawImage(canvas, 0, 0, size, size);
       }

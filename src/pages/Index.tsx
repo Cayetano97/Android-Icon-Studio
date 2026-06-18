@@ -108,6 +108,34 @@ export default function Index() {
 
             <section>
               <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 px-1">
+                Padding Adjustment
+              </h2>
+              <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="padding-adjustment"
+                    className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
+                  >
+                    Padding
+                  </label>
+                  <span className="text-xs font-bold text-primary">
+                    {config.padding}%
+                  </span>
+                </div>
+                <input
+                  id="padding-adjustment"
+                  type="range"
+                  min={5}
+                  max={45}
+                  value={config.padding}
+                  onChange={(e) => updateConfig({ padding: Number(e.target.value) })}
+                  className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
+                />
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-4 px-1">
                 Customization
               </h2>
               <IconCustomizer config={config} onChange={updateConfig} />
