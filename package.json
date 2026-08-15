@@ -10,42 +10,43 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "analyze": "vite-bundle-visualizer",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@radix-ui/react-tabs": "^1.1.21",
-    "@tanstack/react-virtual": "^3.14.9",
+    "@radix-ui/react-tabs": "1.1.21",
+    "@tanstack/react-virtual": "3.14.9",
     "clsx": "2.1.1",
     "file-saver": "2.0.5",
     "jszip": "3.10.1",
-    "lucide-react": "^1.31.0",
-    "react": "^19.2.8",
+    "lucide-react": "1.31.0",
+    "react": "19.2.8",
     "react-best-gradient-color-picker": "3.0.14",
-    "react-dom": "^19.2.8",
+    "react-dom": "19.2.8",
     "tailwind-merge": "3.6.0"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
     "@tailwindcss/vite": "4.3.3",
-    "@types/node": "25.9.5",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
+    "@types/file-saver": "2.0.7",
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.3",
     "eslint": "9.39.5",
-    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.4",
-    "globals": "15.15.0",
-    "postcss": "^8.5.26",
+    "eslint-plugin-react-refresh": "0.5.4",
+    "globals": "17.11.0",
+    "postcss": "8.5.26",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.66.0",
-    "vite": "^8.2.1",
-    "vite-bundle-visualizer": "^1.2.1",
-    "vite-plugin-pwa": "^1.3.0"
+    "typescript-eslint": "8.67.0",
+    "vite": "8.2.1",
+    "vite-bundle-visualizer": "1.2.1",
+    "vite-plugin-pwa": "1.3.0"
   },
   "overrides": {
-    "glob": "^12.0.0"
+    "glob": "12.0.0"
   }
 }
