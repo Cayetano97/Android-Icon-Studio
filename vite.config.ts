@@ -20,7 +20,7 @@ export default defineConfig((_config) => ({
         short_name: "Icon Studio",
         description:
           "Create adaptive Android icons with real-time preview and export",
-        theme_color: "#3DDC84",
+        theme_color: "#2563EB",
         background_color: "#0f1014",
         display: "standalone",
         icons: [
@@ -78,7 +78,7 @@ export default defineConfig((_config) => ({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   build: {

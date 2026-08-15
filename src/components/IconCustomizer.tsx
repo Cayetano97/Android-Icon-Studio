@@ -1,18 +1,14 @@
 import React, { useRef, useEffect, memo, useState, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { IconConfig, IconShape } from "@/types/icon";
-import {
-  Circle,
-  Square,
-  RectangleHorizontal,
-  Ban,
-  ArrowUpRight,
-  CircleDot,
-  Trash2,
-  RotateCcw,
-} from "lucide-react";
+import { IconConfig, IconShape, DarkTheme } from "@/types/icon";
+import { useUiIcons } from "@/lib/uiIcons";
 import { DegreePicker } from "./DegreePicker";
-import { solidToGradient, gradientToSolid, cssColorToHex } from "@/lib/color";
+import {
+  solidToGradient,
+  gradientToSolid,
+  cssColorToHex,
+  normalizeGradientColors,
+} from "@/lib/color";
 
 const LazyColorPickerPanel = lazy(() =>
   import("react-best-gradient-color-picker").then((m) => {
@@ -39,53 +35,59 @@ const LazyColorPickerPanel = lazy(() =>
         currentLeft,
         setPointLeft,
       } = useColorPicker(value, onChange);
+      const I = useUiIcons();
 
       return (
         <>
           {gradientType === "linear-gradient" && (
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 border-b border-white/10">
-              <div className="flex bg-zinc-800 rounded-lg p-0.5 border border-white/5">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-popover border-b border-border">
+              <div className="flex bg-background rounded-lg p-0.5 border border-border">
                 <button
                   type="button"
                   onClick={setLinear}
                   title="Linear Gradient"
-                  className={`p-1 rounded-md transition-all ${gradientType === "linear-gradient" ? "bg-zinc-700 text-primary shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+                  className={`p-1 rounded-md transition-all ${gradientType === "linear-gradient" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
-                  <ArrowUpRight size={14} />
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M4 20L20 4" />
+                  </svg>
                 </button>
                 <button
                   type="button"
                   onClick={setRadial}
                   title="Radial Gradient"
-                  className={`p-1 rounded-md transition-all ${gradientType === "radial-gradient" ? "bg-zinc-700 text-primary shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+                  className={`p-1 rounded-md transition-all ${gradientType === ("radial-gradient" as string) ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
-                  <CircleDot size={14} />
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="8" />
+                    <circle cx="12" cy="12" r="3" fill="currentColor" />
+                  </svg>
                 </button>
               </div>
-              <div className="w-[1px] h-4 bg-white/10" />
+              <div className="w-px h-4 bg-border" />
               <DegreePicker
                 size="small"
                 degrees={degrees}
                 onChange={setDegrees}
               />
-              <div className="w-[1px] h-4 bg-white/10" />
+              <div className="w-px h-4 bg-border" />
               <div className="flex items-center gap-1.5 ml-auto">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                   Stop
                 </span>
                 <input
                   type="number"
                   value={Math.round(currentLeft)}
                   onChange={(e) => setPointLeft(Number(e.target.value))}
-                  className="w-10 bg-zinc-800 border border-white/5 rounded px-1 py-0.5 text-[10px] font-mono text-center focus:outline-none focus:border-primary/50 text-foreground"
+                  className="ik-input w-10! px-1! text-center"
                 />
                 <button
                   type="button"
                   onClick={() => deletePoint(selectedPoint)}
                   title="Delete Color Stop"
-                  className="p-1.5 rounded-lg bg-zinc-800 border border-white/5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                  className="p-1.5 rounded-lg bg-background border border-border text-muted-foreground hover:text-red-500 transition-all"
                 >
-                  <Trash2 size={12} />
+                  <I.Trash2 size={12} />
                 </button>
               </div>
             </div>
@@ -102,7 +104,7 @@ const LazyColorPickerPanel = lazy(() =>
             hideAdvancedSliders={true}
             hideColorGuide={true}
             hideInputType={true}
-            disableLightMode={true}
+            disableLightMode={false}
             idSuffix={idSuffix}
           />
         </>
@@ -118,16 +120,103 @@ interface Props {
   onChange: (updates: Partial<IconConfig>) => void;
 }
 
-const shapes: { value: IconShape; label: string; icon: typeof Circle }[] = [
-  { value: "circle", label: "Circle", icon: Circle },
-  { value: "squircle", label: "Squircle", icon: RectangleHorizontal },
-  { value: "square", label: "Square", icon: Square },
-  { value: "none", label: "None", icon: Ban },
+const SHAPES: { value: IconShape; label: string }[] = [
+  { value: "square", label: "Square" },
+  { value: "squircle", label: "Squircle" },
+  { value: "circle", label: "Circle" },
+];
+
+const DARK_THEMES: { value: DarkTheme; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
 ];
 
 // ---------------------------------------------------------------------------
-// PopoverColorPicker
+// Small building blocks
 // ---------------------------------------------------------------------------
+
+function PropertyRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="ik-row">
+      <span className="ik-row-label">{label}</span>
+      <div className="flex items-center justify-end gap-2 min-w-0">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Segment({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="ik-segment">
+      {options.map((opt) => (
+        <button
+          type="button"
+          key={opt.value}
+          aria-pressed={value === opt.value}
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SliderRow({
+  label,
+  value,
+  display,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  display: string;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <PropertyRow label={label}>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="ik-range flex-1"
+      />
+      <span className="text-[11px] font-bold text-primary font-mono tabular-nums min-w-[34px] text-right">
+        {display}
+      </span>
+    </PropertyRow>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PopoverColorPicker (IconKitchen-style swatch + popover)
+// ---------------------------------------------------------------------------
+
 interface PopoverColorPickerProps {
   label: string;
   value: string;
@@ -151,36 +240,24 @@ function PopoverColorPicker({
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const isGradient = value.includes("gradient");
+  // The picker library only understands rgb-style colors: rewrite any
+  // hsl()/hsla() (e.g. from previously saved sessions) before handing
+  // the value over, otherwise opening the popover throws.
+  const displayValue = normalizeGradientColors(value);
 
   function computePosition() {
     if (!swatchRef.current) return;
     const rect = swatchRef.current.getBoundingClientRect();
     const margin = 8;
-    const sidebarWidth = 384;
-    const isDesktop = window.innerWidth >= 1024;
+    const estimatedHeight = popoverRef.current?.offsetHeight || 420;
 
-    let left;
-    if (isDesktop) {
-      left = sidebarWidth + margin;
-    } else {
-      left = rect.left;
-      if (left + PICKER_WIDTH > window.innerWidth - margin) {
-        left = rect.right - PICKER_WIDTH;
-      }
-    }
-    left = Math.max(
-      margin,
-      Math.min(left, window.innerWidth - PICKER_WIDTH - margin),
-    );
+    let left = rect.left + rect.width / 2 - PICKER_WIDTH / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - PICKER_WIDTH - margin));
 
-    let top;
-    const height = popoverRef.current?.offsetHeight || 450;
-    if (isDesktop) {
-      top = rect.top + rect.height / 2 - height / 2;
-    } else {
-      top = rect.bottom + margin;
+    let top = rect.bottom + margin;
+    if (top + estimatedHeight > window.innerHeight - margin) {
+      top = Math.max(margin, rect.top - estimatedHeight - margin);
     }
-    top = Math.max(margin, Math.min(top, window.innerHeight - height - margin));
 
     setPopoverStyle({
       position: "fixed",
@@ -240,15 +317,13 @@ function PopoverColorPicker({
   }
 
   return (
-    <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-3 rounded-2xl flex flex-col items-center gap-1.5 group relative">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-        {label}
-      </span>
-
+    <div className="flex items-center gap-2 relative group">
       <div
         ref={swatchRef}
-        style={{ background: value }}
-        className="size-10 rounded-xl border border-border/40 shadow-inner cursor-pointer transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        role="button"
+        tabIndex={0}
+        aria-label={`Open ${label} color picker`}
+        aria-expanded={isOpen}
         onClick={() => {
           if (!isOpen) computePosition();
           setIsOpen((prev) => !prev);
@@ -260,55 +335,35 @@ function PopoverColorPicker({
             setIsOpen((prev) => !prev);
           }
         }}
-        tabIndex={0}
-        role="button"
-        aria-expanded={isOpen}
-        aria-label={`Open ${label} color picker`}
+        style={{ background: displayValue }}
+        className="size-6 shrink-0 rounded-full border border-border cursor-pointer shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-transform hover:scale-110"
       />
-
       {!solidOnly && (
-        <div className="flex items-center bg-background/50 border border-border/40 rounded-full p-0.5 gap-0.5">
-          <button
-            type="button"
-            onClick={() => handleModeSwitch(false)}
-            className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full transition-all ${
-              !isGradient
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Solid
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeSwitch(true)}
-            className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full transition-all ${
-              isGradient
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Gradient
-          </button>
-        </div>
+        <Segment
+          value={isGradient ? "gradient" : "solid"}
+          options={[
+            { value: "solid", label: "Solid" },
+            { value: "gradient", label: "Gradient" },
+          ]}
+          onChange={(v) => handleModeSwitch(v === "gradient")}
+        />
       )}
-
       {isOpen &&
         createPortal(
           <div
             ref={popoverRef}
             style={popoverStyle}
-            className="rounded-2xl shadow-2xl overflow-hidden border border-white/10"
+            className="ik-popup-enter rounded-xl shadow-2xl overflow-hidden border border-border bg-popover"
           >
             <Suspense
               fallback={
-                <div className="w-[270px] h-[300px] bg-zinc-900 flex items-center justify-center">
+                <div className="w-[270px] h-[300px] bg-popover flex items-center justify-center">
                   <div className="size-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               }
             >
               <LazyColorPickerPanel
-                value={value}
+                value={displayValue}
                 onChange={onChange}
                 idSuffix={idSuffix}
               />
@@ -321,210 +376,227 @@ function PopoverColorPicker({
 }
 
 // ---------------------------------------------------------------------------
-// Main component
+// Sections
 // ---------------------------------------------------------------------------
-function IconCustomizer({ config, onChange }: Props) {
-  return (
-    <div className="space-y-8">
-      {/* Colors Section */}
-      <div className="space-y-3 relative z-40">
-        <div className="grid grid-cols-2 gap-3">
-          <PopoverColorPicker
-            label="Icon Color"
-            value={config.foregroundColor}
-            onChange={(color) => onChange({ foregroundColor: cssColorToHex(color) })}
-            solidOnly
-            idSuffix="fg"
-          />
-          <PopoverColorPicker
-            label="Background"
-            value={config.background}
-            onChange={(color) => onChange({ background: color })}
-            idSuffix="bg"
-          />
-        </div>
-      </div>
 
-      {/* Shape Section */}
-      <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-3">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 block">
-          Container Shape
-        </span>
-        <div className="grid grid-cols-4 gap-1.5">
-          {shapes.map(({ value, label, icon: Icon }) => (
+function SectionHeader({
+  title,
+  collapsible,
+  open,
+  onToggle,
+}: {
+  title: string;
+  collapsible?: boolean;
+  open?: boolean;
+  onToggle?: () => void;
+}) {
+  const I = useUiIcons();
+  if (!collapsible) {
+    return <div className="ik-section-header mb-3 mt-5 first:mt-0">{title}</div>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="ik-section-header w-full mb-3 mt-5 first:mt-0 cursor-pointer select-none"
+      aria-expanded={open}
+    >
+      {title}
+      {open ? (
+        <I.ChevronDown size={14} className="shrink-0" />
+      ) : (
+        <I.ChevronRight size={14} className="shrink-0" />
+      )}
+    </button>
+  );
+}
+
+function ForegroundSection({ config, onChange }: Props) {
+  const I = useUiIcons();
+  const resetTransform = () =>
+    onChange({
+      foregroundScale: 1.0,
+      foregroundOffsetX: 0,
+      foregroundOffsetY: 0,
+      foregroundRotation: 0,
+    });
+
+  return (
+    <div className="space-y-1">
+      <PropertyRow label="Icon Color">
+        <PopoverColorPicker
+          label="Icon"
+          value={config.foregroundColor}
+          onChange={(color) => onChange({ foregroundColor: cssColorToHex(color) })}
+          solidOnly
+          idSuffix="fg"
+        />
+      </PropertyRow>
+
+      <SliderRow
+        label="Padding"
+        value={config.padding}
+        display={`${config.padding}%`}
+        min={0}
+        max={45}
+        step={1}
+        onChange={(padding) => onChange({ padding })}
+      />
+
+      <div className="flex items-center justify-end pt-1 pb-0.5">
+        <button
+          type="button"
+          onClick={resetTransform}
+          className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary transition-colors"
+        >
+          <I.RotateCcw size={10} />
+          Reset transform
+        </button>
+      </div>
+      <SliderRow
+        label="Scale"
+        value={config.foregroundScale}
+        display={config.foregroundScale.toFixed(2)}
+        min={0.5}
+        max={1.5}
+        step={0.05}
+        onChange={(v) => onChange({ foregroundScale: v })}
+      />
+      <SliderRow
+        label="Offset X"
+        value={config.foregroundOffsetX}
+        display={`${config.foregroundOffsetX}%`}
+        min={-50}
+        max={50}
+        step={1}
+        onChange={(v) => onChange({ foregroundOffsetX: v })}
+      />
+      <SliderRow
+        label="Offset Y"
+        value={config.foregroundOffsetY}
+        display={`${config.foregroundOffsetY}%`}
+        min={-50}
+        max={50}
+        step={1}
+        onChange={(v) => onChange({ foregroundOffsetY: v })}
+      />
+      <SliderRow
+        label="Rotation"
+        value={config.foregroundRotation}
+        display={`${config.foregroundRotation}°`}
+        min={0}
+        max={360}
+        step={1}
+        onChange={(v) => onChange({ foregroundRotation: v })}
+      />
+    </div>
+  );
+}
+
+function BackgroundSection({ config, onChange }: Props) {
+  return (
+    <div className="space-y-1">
+      <PropertyRow label="Color">
+        <PopoverColorPicker
+          label="Background"
+          value={config.background}
+          onChange={(color) => onChange({ background: color })}
+          idSuffix="bg"
+        />
+      </PropertyRow>
+      <PropertyRow label="Shape">
+        <Segment
+          value={config.shape}
+          options={SHAPES}
+          onChange={(shape) => onChange({ shape: shape as IconShape })}
+        />
+      </PropertyRow>
+    </div>
+  );
+}
+
+function MoreSection({ config, onChange }: Props) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div>
+      <SectionHeader
+        title="More"
+        collapsible
+        open={open}
+        onToggle={() => setOpen((prev) => !prev)}
+      />
+      {open && (
+        <div className="space-y-1">
+          <PropertyRow label="Filename">
+            <input
+              value={config.filename}
+              onChange={(e) =>
+                onChange({
+                  filename: e.target.value.replace(/[^a-z0-9_]/gi, "_"),
+                })
+              }
+              placeholder="ic_launcher"
+              spellCheck={false}
+              className="ik-input"
+            />
+          </PropertyRow>
+          <PropertyRow label="Dark theme">
+            <Segment
+              value={config.darkTheme}
+              options={DARK_THEMES}
+              onChange={(v) => onChange({ darkTheme: v as DarkTheme })}
+            />
+          </PropertyRow>
+          <PropertyRow label="Themed">
             <button
               type="button"
-              key={value}
-              onClick={() => onChange({ shape: value })}
-              className={`flex flex-col items-center gap-1.5 py-2 px-1 rounded-xl text-[10px] font-bold uppercase tracking-tighter transition-all border ${
-                config.shape === value
-                  ? "bg-primary text-primary-foreground border-primary shadow-[0_0_20px_-5px_hsla(var(--primary),0.4)] scale-105"
-                  : "bg-background/40 text-muted-foreground border-border/50 hover:bg-accent/40"
+              role="switch"
+              aria-checked={config.monochromeEnabled}
+              onClick={() =>
+                onChange({ monochromeEnabled: !config.monochromeEnabled })
+              }
+              className={`relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors ${
+                config.monochromeEnabled ? "bg-primary" : "bg-muted/40 border border-border"
               }`}
             >
-              <Icon size={18} />
-              {label}
+              <span
+                className={`inline-block size-3.5 rounded-full bg-white shadow transition-transform ${
+                  config.monochromeEnabled ? "translate-x-[16px]" : "translate-x-[1px]"
+                }`}
+              />
             </button>
-          ))}
+          </PropertyRow>
+          {config.monochromeEnabled && (
+            <PropertyRow label="Monochrome">
+              <PopoverColorPicker
+                label="Monochrome"
+                value={config.monochromeColor}
+                onChange={(color) =>
+                  onChange({ monochromeColor: cssColorToHex(color) })
+                }
+                solidOnly
+                idSuffix="mono"
+              />
+            </PropertyRow>
+          )}
         </div>
-      </div>
+      )}
+    </div>
+  );
+}
 
-      {/* Foreground Position */}
-      <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-            Foreground Position
-          </span>
-          <button
-            type="button"
-            onClick={() =>
-              onChange({
-                foregroundScale: 1.0,
-                foregroundOffsetX: 0,
-                foregroundOffsetY: 0,
-                foregroundRotation: 0,
-              })
-            }
-            className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-primary transition-colors"
-          >
-            <RotateCcw size={10} />
-            Reset
-          </button>
-        </div>
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Scale
-            </span>
-            <span className="text-xs font-mono text-primary font-bold">
-              {config.foregroundScale.toFixed(2)}
-            </span>
-          </div>
-          <input
-            type="range"
-            min={0.5}
-            max={1.5}
-            step={0.05}
-            value={config.foregroundScale}
-            onChange={(e) =>
-              onChange({ foregroundScale: parseFloat(e.target.value) })
-            }
-            className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
-          />
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Offset X
-            </span>
-            <span className="text-xs font-mono text-primary font-bold">
-              {config.foregroundOffsetX}%
-            </span>
-          </div>
-          <input
-            type="range"
-            min={-50}
-            max={50}
-            step={1}
-            value={config.foregroundOffsetX}
-            onChange={(e) =>
-              onChange({ foregroundOffsetX: parseInt(e.target.value) })
-            }
-            className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
-          />
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Offset Y
-            </span>
-            <span className="text-xs font-mono text-primary font-bold">
-              {config.foregroundOffsetY}%
-            </span>
-          </div>
-          <input
-            type="range"
-            min={-50}
-            max={50}
-            step={1}
-            value={config.foregroundOffsetY}
-            onChange={(e) =>
-              onChange({ foregroundOffsetY: parseInt(e.target.value) })
-            }
-            className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
-          />
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Rotation
-            </span>
-            <span className="text-xs font-mono text-primary font-bold">
-              {config.foregroundRotation}°
-            </span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={360}
-            step={1}
-            value={config.foregroundRotation}
-            onChange={(e) =>
-              onChange({ foregroundRotation: parseInt(e.target.value) })
-            }
-            className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
-          />
-        </div>
-      </div>
-
-      {/* Themed Icon (Android 13+) */}
-      <div className="bg-card/30 backdrop-blur-sm border border-border/40 p-4 rounded-2xl space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-            Themed Icon (Android 13+)
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={config.monochromeEnabled}
-            onClick={() =>
-              onChange({ monochromeEnabled: !config.monochromeEnabled })
-            }
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              config.monochromeEnabled
-                ? "bg-primary"
-                : "bg-muted border border-border/60"
-            }`}
-          >
-            <span
-              className={`inline-block size-3.5 rounded-full bg-white transition-transform ${
-                config.monochromeEnabled ? "translate-x-4" : "translate-x-0.5"
-              }`}
-            />
-          </button>
-        </div>
-        <p className="text-[9px] text-muted-foreground/50 leading-relaxed">
-          Exports a monochrome vector drawable for Android 13+ themed icons.
-        </p>
-
-        {config.monochromeEnabled && (
-          <div className="relative z-40">
-            <PopoverColorPicker
-              label="Monochrome Color"
-              value={config.monochromeColor}
-              onChange={(color) =>
-                onChange({ monochromeColor: cssColorToHex(color) })
-              }
-              solidOnly
-              idSuffix="mono"
-            />
-          </div>
-        )}
-      </div>
+function IconCustomizer({ config, onChange }: Props) {
+  return (
+    <div className="space-y-1">
+      <ForegroundSection config={config} onChange={onChange} />
+      <SectionHeader title="Background" />
+      <BackgroundSection config={config} onChange={onChange} />
+      <MoreSection config={config} onChange={onChange} />
     </div>
   );
 }

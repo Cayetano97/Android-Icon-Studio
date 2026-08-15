@@ -1,5 +1,6 @@
 export type IconSource = "clipart" | "text" | "image";
 export type IconShape = "circle" | "square" | "squircle" | "none";
+export type DarkTheme = "auto" | "dark" | "light";
 
 export interface GradientStop {
   color: string;
@@ -29,6 +30,10 @@ export interface IconConfig {
   // Monochrome (Android 13+ themed icon)
   monochromeEnabled: boolean;
   monochromeColor: string;
+  // Export
+  filename: string;
+  // Mockup preview theme
+  darkTheme: DarkTheme;
 }
 
 export const DEFAULT_CONFIG: IconConfig = {
@@ -39,13 +44,15 @@ export const DEFAULT_CONFIG: IconConfig = {
   fontWeight: 700,
   imageDataUrl: null,
   foregroundColor: "rgba(255, 255, 255, 1)",
-  background: "rgba(61, 220, 132, 1)",
+  background: "rgba(37, 99, 235, 1)",
   shape: "circle",
-  padding: 20,
+  padding: 15,
   foregroundScale: 1.0,
   foregroundOffsetX: 0,
   foregroundOffsetY: 0,
   foregroundRotation: 0,
   monochromeEnabled: false,
   monochromeColor: "rgba(255, 255, 255, 1)",
+  filename: "ic_launcher",
+  darkTheme: "auto",
 };

@@ -18,16 +18,52 @@ function mergeWithDefaults(shared: Partial<SharedConfig>): IconConfig {
   };
 }
 
+// Compact base64url encoding (no padding, URL-safe)
+function encodeConfig(shared: Partial<SharedConfig>): string {
+  const json = JSON.stringify(shared);
+  const bytes = new TextEncoder().encode(json);
+  let binary = "";
+  const CHUNK_SIZE = 32768;
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE));
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function decodeConfig(encoded: string): Partial<SharedConfig> | null {
+  try {
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padding = base64.length % 4;
+    const padded = padding ? base64 + "=".repeat(4 - padding) : base64;
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    const json = new TextDecoder().decode(bytes);
+    const parsed = JSON.parse(json) as Partial<SharedConfig>;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 function readUrlConfig(): IconConfig | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const c = params.get("c");
   if (c) {
+    // Try compact base64url format first
+    const parsed = decodeConfig(c);
+    if (parsed) {
+      const config = mergeWithDefaults(parsed);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toShared(config)));
+      return config;
+    }
+    // Fallback: legacy percent-encoded JSON
     try {
       const json = decodeURIComponent(c);
-      const parsed = JSON.parse(json) as Partial<SharedConfig>;
-      if (!parsed || typeof parsed !== "object") return null;
-      const config = mergeWithDefaults(parsed);
+      const legacy = JSON.parse(json) as Partial<SharedConfig>;
+      if (!legacy || typeof legacy !== "object") return null;
+      const config = mergeWithDefaults(legacy);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toShared(config)));
       return config;
     } catch {
@@ -52,11 +88,10 @@ function readUrlConfig(): IconConfig | null {
 function writeUrlConfig(config: IconConfig) {
   if (typeof window === "undefined") return;
   const shared = toShared(config);
-  const json = JSON.stringify(shared);
-  const encoded = encodeURIComponent(json);
+  const encoded = encodeConfig(shared);
 
   // Also persist to localStorage
-  localStorage.setItem(STORAGE_KEY, json);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(shared));
 
   const url = new URL(window.location.href);
   if (encoded) {
@@ -97,8 +132,7 @@ export function useUrlState() {
 export function buildShareUrl(config: IconConfig): string {
   if (typeof window === "undefined") return "";
   const shared = toShared(config);
-  const json = JSON.stringify(shared);
-  const encoded = encodeURIComponent(json);
+  const encoded = encodeConfig(shared);
   const url = new URL(window.location.href);
   if (encoded) {
     url.searchParams.set("c", encoded);

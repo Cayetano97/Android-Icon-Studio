@@ -1,14 +1,50 @@
 import { memo } from "react";
-import { Download, Sun, Moon, Menu, X, Share2, Check } from "lucide-react";
+import { useUiIcons } from "@/lib/uiIcons";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
   onToggleTheme: () => void;
   dark: boolean;
-  onShare: () => void;
+  onCopyLink: () => void;
   onDownload: () => void;
+  onReset: () => void;
   copied: boolean;
+}
+
+function ToolbarButton({
+  onClick,
+  icon,
+  label,
+  title,
+  primary,
+  disabled,
+}: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label?: string;
+  title: string;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      className={`relative group/tooltip flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-bold transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed ${
+        primary
+          ? "bg-primary text-primary-foreground hover:opacity-90"
+          : "shadow-[inset_0_0_0_1px_hsl(var(--border))] text-primary hover:bg-accent/40"
+      }`}
+    >
+      {icon}
+      {label && <span className="hidden sm:inline">{label}</span>}
+      <span className="ik-tooltip">{title}</span>
+    </button>
+  );
 }
 
 export default memo(function Header({
@@ -16,10 +52,12 @@ export default memo(function Header({
   sidebarOpen,
   onToggleTheme,
   dark,
-  onShare,
+  onCopyLink,
   onDownload,
+  onReset,
   copied,
 }: HeaderProps) {
+  const I = useUiIcons();
   return (
     <>
       <a
@@ -28,58 +66,56 @@ export default memo(function Header({
       >
         Skip to content
       </a>
-      <header className="border-b border-border/50 bg-background/60 backdrop-blur-xl px-6 py-4 flex items-center justify-between shrink-0 z-40">
-        <div className="flex items-center gap-3">
+      <header className="border-b border-border/60 bg-background/70 backdrop-blur-xl px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 z-40 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onToggleSidebar}
             className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-accent text-foreground"
+            aria-label={sidebarOpen ? "Close menu" : "Open menu"}
           >
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            {sidebarOpen ? <I.X size={20} /> : <I.Menu size={20} />}
           </button>
-          <div className="flex items-center justify-center">
-            <img
-              src="/ic_launcher.svg"
-              alt="Android Icon Studio Logo"
-              className="size-8 drop-shadow-sm"
-            />
-          </div>
-          <div className="hidden sm:block">
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">
+          <img
+            src="/ic_launcher.svg"
+            alt="Android Icon Studio Logo"
+            className="size-8 shrink-0 drop-shadow-sm"
+          />
+          <div className="min-w-0 hidden sm:block">
+            <h1 className="text-[15px] font-black text-foreground tracking-tight leading-5">
               Android Icon Studio
             </h1>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onToggleTheme}
-            className="p-2 rounded-lg hover:bg-accent text-foreground transition-colors"
-            title={dark ? "Light mode" : "Dark mode"}
-          >
-            {dark ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          <button
-            type="button"
-            onClick={onShare}
-            aria-label="Share icon link"
-            title="Copy shareable link"
-            className="flex items-center gap-2 bg-secondary text-secondary-foreground px-5 py-2.5 rounded-full text-sm font-bold hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
-          >
-            {copied ? <Check size={18} /> : <Share2 size={18} />}
-            <span className="hidden sm:inline">
-              {copied ? "Copied!" : "Share"}
-            </span>
-          </button>
-          <button
-            type="button"
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <ToolbarButton
             onClick={onDownload}
-            aria-label="Download icons"
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full text-sm font-bold hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-all"
-          >
-            <Download size={18} />
-            <span className="hidden sm:inline">Download Icons</span>
-          </button>
+            icon={<I.Download size={16} />}
+            label="Download"
+            title="Download (Ctrl+D)"
+            primary
+          />
+          <ToolbarButton
+            onClick={onCopyLink}
+            icon={
+              copied ? (
+                <I.Check size={16} className="text-primary" />
+              ) : (
+                <I.Link2 size={16} />
+              )
+            }
+            title={copied ? "Copied!" : "Copy link (Ctrl+S)"}
+          />
+          <ToolbarButton
+            onClick={onToggleTheme}
+            icon={dark ? <I.Sun size={16} /> : <I.Moon size={16} />}
+            title={dark ? "Switch to light theme" : "Switch to dark theme (Ctrl+T)"}
+          />
+          <ToolbarButton
+            onClick={onReset}
+            icon={<I.RotateCcw size={16} />}
+            title="Start over"
+          />
         </div>
       </header>
     </>

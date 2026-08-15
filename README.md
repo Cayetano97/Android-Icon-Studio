@@ -68,60 +68,57 @@
 
 ## 📦 Download Output Structure
 
-When you click **Download Icons**, you will receive a `android-icons.zip` file with the following structure:
+When you click **Download Icons**, you will receive a `android-icons.zip` file with a structure
+matching the Android Studio icon wizard and IconKitchen output:
 
 ```
 android-icons.zip
 │
 ├── res/
 │   ├── mipmap-mdpi/
-│   │   ├── ic_launcher.png          # 48 × 48 px
-│   │   └── ic_launcher_round.png    # 48 × 48 px (circular crop)
-│   ├── mipmap-hdpi/
-│   │   ├── ic_launcher.png          # 72 × 72 px
-│   │   └── ic_launcher_round.png    # 72 × 72 px
-│   ├── mipmap-xhdpi/
-│   │   ├── ic_launcher.png          # 96 × 96 px
-│   │   └── ic_launcher_round.png    # 96 × 96 px
-│   ├── mipmap-xxhdpi/
-│   │   ├── ic_launcher.png          # 144 × 144 px
-│   │   └── ic_launcher_round.png    # 144 × 144 px
-│   ├── mipmap-xxxhdpi/
-│   │   ├── ic_launcher.png          # 192 × 192 px
-│   │   └── ic_launcher_round.png    # 192 × 192 px
-│   ├── mipmap-anydpi-v26/
-│   │   ├── ic_launcher.xml          # Adaptive icon (API 26+)
-│   │   └── ic_launcher_round.xml    # Adaptive round icon (API 26+)
-│   └── drawable/
-│       ├── ic_launcher_background.xml
-│       ├── ic_launcher_foreground.xml
-│       └── ic_launcher_monochrome.xml  (conditional — Android 13+ themed)
+│   │   ├── ic_launcher.png               # 48 × 48 px  (legacy, with gloss)
+│   │   ├── ic_launcher_background.png    # 108 × 108 px (adaptive layer)
+│   │   ├── ic_launcher_foreground.png    # 108 × 108 px (adaptive layer)
+│   │   ├── ic_launcher_monochrome.png    # 108 × 108 px (Android 13+ themed)
+│   │   └── ic_launcher_round.png         # 48 × 48 px  (optional legacy round)
+│   ├── mipmap-hdpi/                      # ×1.5 (72 / 162 px)
+│   ├── mipmap-xhdpi/                     # ×2   (96 / 216 px)
+│   ├── mipmap-xxhdpi/                    # ×3   (144 / 324 px)
+│   ├── mipmap-xxxhdpi/                   # ×4   (192 / 432 px)
+│   └── mipmap-anydpi-v26/
+│       └── ic_launcher.xml               # Adaptive icon definition (API 26+)
 │
-├── ic_launcher_playstore_512.png    # 512 × 512 px  – Google Play Store listing
-├── ic_launcher_playstore_1024.png   # 1024 × 1024 px – High-res Play Store
-├── ic_launcher_512.webp             # WebP version
-├── ic_launcher.svg                  # Scalable vector version
-├── ic_launcher.xml                  # Android Vector Drawable (API 21+)
-└── README.txt                       # Installation instructions
+├── play_store_512.png                    # 512 × 512 px – Google Play Store listing
+├── ic_launcher_playstore_1024.png        # 1024 × 1024 px – High-res Play Store extra
+├── ic_launcher_512.webp                  # WebP version
+├── ic_launcher.svg                       # Scalable vector version
+├── ic_launcher.xml                       # Android Vector Drawable (API 21+)
+└── README.txt                            # Installation instructions
 ```
 
 ### File details
 
-| File                                      | Format | Usage                                                       |
-| :---------------------------------------- | :----- | :---------------------------------------------------------- |
-| `res/mipmap-*/ic_launcher.png`            | PNG    | Legacy app icon for each density bucket                     |
-| `res/mipmap-*/ic_launcher_round.png`      | PNG    | Legacy round app icon for each density bucket               |
-| `res/mipmap-anydpi-v26/ic_launcher.xml`   | XML    | Adaptive icon definition (API 26+)                          |
-| `res/drawable/ic_launcher_background.xml` | XML    | Vector/solid background for adaptive icon                   |
-| `res/drawable/ic_launcher_foreground.xml` | XML    | Vector foreground for adaptive icon                         |
-| `res/drawable/ic_launcher_monochrome.xml` | XML    | Monochrome foreground for themed icons (Android 13+)        |
-| `ic_launcher_playstore_512.png`           | PNG    | High-res icon for the Google Play Store listing             |
-| `ic_launcher_playstore_1024.png`          | PNG    | Extra high-res icon for Play Store                          |
-| `ic_launcher_512.webp`                    | WebP   | Modern format with transparency                             |
-| `ic_launcher.svg`                         | SVG    | Scalable vector; preserves gradients via `<linearGradient>` |
-| `ic_launcher.xml`                         | XML    | Android Vector Drawable; gradient fills require API 24+     |
+| File                                          | Format | Usage                                                       |
+| :-------------------------------------------- | :----- | :---------------------------------------------------------- |
+| `res/mipmap-*/ic_launcher.png`                | PNG    | Legacy app icon per density (48dp, shape + gloss effects)   |
+| `res/mipmap-*/ic_launcher_background.png`     | PNG    | Adaptive background layer (108dp, content in 72dp zone)     |
+| `res/mipmap-*/ic_launcher_foreground.png`     | PNG    | Adaptive foreground layer (108dp)                           |
+| `res/mipmap-*/ic_launcher_monochrome.png`     | PNG    | Monochrome layer for themed icons (Android 13+)             |
+| `res/mipmap-anydpi-v26/ic_launcher.xml`       | XML    | Adaptive icon definition (API 26+)                          |
+| `play_store_512.png`                          | PNG    | Google Play Store listing (512px)                           |
+| `ic_launcher_playstore_1024.png`              | PNG    | Extra high-res Play Store                                   |
+| `ic_launcher_512.webp`                        | WebP   | Modern format with transparency                             |
+| `ic_launcher.svg`                             | SVG    | Scalable vector; preserves gradients via `<linearGradient>` |
+| `ic_launcher.xml`                             | XML    | Android Vector Drawable; gradient fills require API 24+     |
 
-> **Tip:** Drop the `res/` folder directly into `app/src/main/` in Android Studio and you are done.
+> **Quality notes**
+> - Every raster asset is rendered **directly at its target density** from vector
+>   sources (no upscaling loss), with high-quality image smoothing.
+> - Adaptive layers are 108×108dp with content constrained to the central
+>   72×72dp safe zone, exactly like the Android Studio icon wizard.
+> - Legacy icons apply the classic gloss + inner/outer shadow effects.
+> - The filename is configurable (default `ic_launcher`).
+> - Drop the `res/` folder directly into `app/src/main/` and you are done.
 
 ## 🤝 How to Contribute
 

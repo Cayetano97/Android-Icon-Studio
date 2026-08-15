@@ -1,22 +1,66 @@
-import { IconConfig } from "@/types/icon";
+import { IconConfig, IconShape } from "@/types/icon";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { parseCssGradient } from "@/lib/canvasGradient";
-import {
-  cssColorToHex,
-  parseCssColorToRgba,
-  extractFirstColor,
-} from "@/lib/color";
+import { cssColorToHex } from "@/lib/color";
 import {
   extractPathsFromSvg,
   extractLucideVectorPaths,
   getShapeSvgClip,
   getShapeSvgPath,
 } from "@/lib/svgPathUtils";
-import { androidSizes } from "@/lib/constants";
+import { renderIcon, Effect } from "@/lib/iconRenderer";
 
-const SUPERSAMPLE_FACTOR_DENSITY = 4;
 const SUPERSAMPLE_FACTOR_PLAY = 2;
+
+// Density buckets: multiplier over the base dp size (matches IconKitchen)
+const DENSITIES = [
+  { folder: "mipmap-mdpi", mult: 1 },
+  { folder: "mipmap-hdpi", mult: 1.5 },
+  { folder: "mipmap-xhdpi", mult: 2 },
+  { folder: "mipmap-xxhdpi", mult: 3 },
+  { folder: "mipmap-xxxhdpi", mult: 4 },
+] as const;
+
+// Legacy safe zone (content size in dp of 48) per shape — matches IconKitchen
+const LEGACY_CONTENT: Record<IconShape, number> = {
+  square: 38,
+  squircle: 42,
+  circle: 44,
+  none: 44,
+};
+
+// Legacy final effects (gloss + shadows) — mirrors IconKitchen's eyt()
+function legacyEffects(mult: number): Effect[] {
+  return [
+    {
+      effect: "inner-shadow",
+      color: "rgba(255, 255, 255, 0.2)",
+      translateY: 0.25 * mult,
+    },
+    {
+      effect: "inner-shadow",
+      color: "rgba(0, 0, 0, 0.2)",
+      translateY: -0.25 * mult,
+    },
+    {
+      effect: "outer-shadow",
+      color: "rgba(0, 0, 0, 0.3)",
+      blur: 0.7 * mult,
+      translateY: 0.7 * mult,
+    },
+    {
+      effect: "fill-radialgradient",
+      centerX: 0,
+      centerY: 0,
+      radius: 48 * mult,
+      colors: [
+        { offset: 0, color: "rgba(255, 255, 255, 0.1)" },
+        { offset: 1, color: "rgba(255, 255, 255, 0)" },
+      ],
+    },
+  ];
+}
 
 function svgSafeColor(color: string): string {
   return cssColorToHex(color);
@@ -180,34 +224,6 @@ function canvasToBlob(
   });
 }
 
-function renderCanvasAtSize(
-  source: HTMLCanvasElement,
-  targetSize: number,
-): HTMLCanvasElement {
-  const c = createHighQualityCanvas(targetSize, targetSize);
-  const ctx = c.getContext("2d", { willReadFrequently: true })!;
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(source, 0, 0, targetSize, targetSize);
-  return c;
-}
-
-function renderRoundCanvas(
-  source: HTMLCanvasElement,
-  targetSize: number,
-): HTMLCanvasElement {
-  const c = createHighQualityCanvas(targetSize, targetSize);
-  const ctx = c.getContext("2d", { willReadFrequently: true })!;
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.beginPath();
-  ctx.arc(targetSize / 2, targetSize / 2, targetSize / 2, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-  ctx.drawImage(source, 0, 0, targetSize, targetSize);
-  return c;
-}
-
 export function generateSvg(
   config: IconConfig,
   size: number = 512,
@@ -332,146 +348,13 @@ ${pathData}
 </vector>`;
 }
 
-function buildAdaptiveForegroundXml(
-  config: IconConfig,
-  iconSvg?: string,
-): string {
-  const viewportSize = 108;
-  const contentSize = 72;
-  const offset = (viewportSize - contentSize) / 2;
-  const centerX = viewportSize / 2;
-  const centerY = viewportSize / 2;
-
-  const offsetX = (config.foregroundOffsetX / 100) * contentSize;
-  const offsetY = (config.foregroundOffsetY / 100) * contentSize;
-  const scale = config.foregroundScale;
-  const rotation = config.foregroundRotation;
-
-  let content = "";
-
-  if (config.source === "text") {
-    const fgColor = svgSafeColor(config.foregroundColor);
-    content = `    <group
-        android:pivotX="${centerX}"
-        android:pivotY="${centerY}"
-        android:translateX="${offsetX}"
-        android:translateY="${offsetY}"
-        android:scaleX="${scale}"
-        android:scaleY="${scale}"
-        android:rotation="${rotation}">
-      <path
-          android:pathData="M${centerX - contentSize * 0.25},${centerY}h${contentSize * 0.5}v${contentSize * 0.5}h-${contentSize * 0.5}z"
-          android:fillColor="${fgColor}"/>
-    </group>`;
-  } else if (config.source === "clipart" && iconSvg) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(iconSvg, "image/svg+xml");
-    const svgEl = doc.querySelector("svg");
-    if (svgEl) {
-      const viewBox = svgEl.getAttribute("viewBox");
-      let vbW = 24;
-      if (viewBox) {
-        const parts = viewBox.split(/[\s,]+/).map(Number);
-        if (parts.length === 4) {
-          vbW = parts[2];
-        }
-      }
-
-      const svgScale = contentSize / vbW;
-      const groupAttrs = `android:pivotX="${centerX}" android:pivotY="${centerY}" android:translateX="${offsetX + offset}" android:translateY="${offsetY + offset}" android:scaleX="${scale * svgScale}" android:scaleY="${scale * svgScale}" android:rotation="${rotation}"`;
-
-      const parts: string[] = [];
-      const walk = (el: Element) => {
-        const tag = el.tagName.toLowerCase();
-        if (tag === "svg" || tag === "defs" || tag === "title") {
-          for (const child of Array.from(el.children)) walk(child);
-          return;
-        }
-        if (tag === "path") {
-          const d = el.getAttribute("d");
-          const fill = el.getAttribute("fill") ?? config.foregroundColor;
-          if (d)
-            parts.push(
-              `      <path android:pathData="${d}" android:fillColor="${fill}"/>`,
-            );
-        } else if (tag === "g") {
-          for (const child of Array.from(el.children)) walk(child);
-        }
-      };
-      for (const child of Array.from(svgEl.children)) walk(child);
-
-      if (parts.length > 0) {
-        content = `    <group\n        ${groupAttrs}>\n${parts.join("\n")}\n    </group>`;
-      }
-    }
-  }
-
-  if (!content) {
-    content = `    <group
-        android:pivotX="${centerX}"
-        android:pivotY="${centerY}"
-        android:translateX="${offsetX}"
-        android:translateY="${offsetY}"
-        android:scaleX="${scale}"
-        android:scaleY="${scale}"
-        android:rotation="${rotation}">
-    </group>`;
-  }
-
+function buildAdaptiveIconXml(filename: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-${content}
-</vector>`;
-}
-
-function buildAdaptiveBackgroundXml(config: IconConfig): string {
-  const bg = config.background;
-
-  if (!bg.includes("gradient")) {
-    const { r, g, b } = parseCssColorToRgba(bg);
-    const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    return `<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:fillColor="${hex}"/>
-</shape>`;
-  }
-
-  const parsed = parseCssGradient(bg);
-  if (!parsed || parsed.type !== "linear") {
-    const firstColor = extractFirstColor(bg);
-    const { r, g, b } = parseCssColorToRgba(firstColor);
-    const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    return `<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:fillColor="${hex}"/>
-</shape>`;
-  }
-
-  const angle = parsed.angle;
-
-  return `<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
-    android:shape="rectangle">
-    <gradient
-        android:type="linear"
-        android:angle="${angle}"
-        android:startColor="${svgColor(parsed.stops[0]?.color ?? "#000").color}"
-        android:endColor="${svgColor(parsed.stops[parsed.stops.length - 1]?.color ?? "#000").color}"/>
-</shape>`;
-}
-
-function buildMonochromeXml(config: IconConfig, iconSvg?: string): string {
-  return buildAdaptiveForegroundXml(
-    { ...config, foregroundColor: config.monochromeColor },
-    iconSvg,
-  );
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+  <background android:drawable="@mipmap/${filename}_background"/>
+  <foreground android:drawable="@mipmap/${filename}_foreground"/>
+  <monochrome android:drawable="@mipmap/${filename}_monochrome"/>
+</adaptive-icon>`;
 }
 
 const README_CONTENT = `Android Icon Studio — Export
@@ -479,118 +362,113 @@ const README_CONTENT = `Android Icon Studio — Export
 
 Installation:
 1. Copy the 'res/' folder to your project's app/src/main/ directory
-2. The adaptive icons (API 26+) are in mipmap-anydpi-v26/
+2. Adaptive icons (API 26+) are in mipmap-anydpi-v26/
 3. Legacy PNG icons are in mipmap-{density}/ for older devices
-4. Themed icon (Android 13+) is in drawable/ic_launcher_monochrome.xml
+4. Themed icons (Android 13+) use the monochrome layer automatically
 
 Files:
-- res/mipmap-*/ic_launcher.png        Legacy launcher icons
-- res/mipmap-*/ic_launcher_round.png   Legacy round launcher icons
-- res/mipmap-anydpi-v26/              Adaptive icons (API 26+)
-- res/drawable/                       Vector drawables
-- ic_launcher_playstore_512.png        Play Store listing (512px)
-- ic_launcher_playstore_1024.png       Play Store listing (1024px)
-- ic_launcher_512.webp                 WebP version
-- ic_launcher.svg                      SVG vector version
-- ic_launcher.xml                      Android Vector Drawable
+- res/mipmap-anydpi-v26/{filename}.xml      Adaptive icon definition
+- res/mipmap-*/{filename}.png               Legacy launcher icons (48dp)
+- res/mipmap-*/{filename}_background.png    Adaptive background layer (108dp)
+- res/mipmap-*/{filename}_foreground.png    Adaptive foreground layer (108dp)
+- res/mipmap-*/{filename}_monochrome.png    Monochrome layer (Android 13+)
+- play_store_512.png                        Play Store listing (512px)
+- {filename}_playstore_1024.png             High-res Play Store extra
+- {filename}_512.webp                       WebP version
+- {filename}.svg                            Scalable vector version
+- {filename}.xml                            Android Vector Drawable
 
-Note: For themed icon support (Android 13+), include
-drawable/ic_launcher_monochrome.xml and reference it in your
-theme or manifest with android:monochrome drawable.
+Note: Adaptive layers are 108x108dp with content within the 72x72dp
+safe zone, matching the Android Studio icon wizard output.
 `;
 
 export async function downloadAndroidIcons(
-  canvas: HTMLCanvasElement,
   config: IconConfig,
   iconSvg?: string,
 ) {
   try {
     const zip = new JSZip();
-
-    const densities = androidSizes.map((s) => ({
-      folder: s.folder,
-      size: s.size,
-    }));
+    const filename = (config.filename || "ic_launcher")
+      .replace(/[^a-z0-9_]/gi, "_");
 
     const resFolder = zip.folder("res")!;
 
-    const ssDensity = SUPERSAMPLE_FACTOR_DENSITY;
-    const ssPlay = SUPERSAMPLE_FACTOR_PLAY;
-    const ssSizeDensity = 512 * ssDensity;
-    const ssSizePlay = 512 * ssPlay;
-    const superCanvasDensity = createHighQualityCanvas(ssSizeDensity, ssSizeDensity);
-    superCanvasDensity.getContext("2d", { willReadFrequently: true })!.drawImage(canvas, 0, 0, ssSizeDensity, ssSizeDensity);
-    const superCanvasPlay = createHighQualityCanvas(ssSizePlay, ssSizePlay);
-    superCanvasPlay.getContext("2d", { willReadFrequently: true })!.drawImage(canvas, 0, 0, ssSizePlay, ssSizePlay);
-
-    // ic_launcher.png for each density — single-step downscale from 4× source
-    const canvasBlobs = await Promise.all(
-      densities.map(async ({ folder, size }) => {
-        const c = renderCanvasAtSize(superCanvasDensity, size);
-        const blob = await canvasToBlob(c);
-        return { folder, blob };
-      }),
-    );
-    for (const { folder, blob } of canvasBlobs) {
-      resFolder.folder(folder)!.file("ic_launcher.png", blob);
-    }
-
-    // ic_launcher_round.png for each density — single-step downscale from 4× source
-    const roundBlobs = await Promise.all(
-      densities.map(async ({ folder, size }) => {
-        const c = renderCanvasAtSize(superCanvasDensity, size);
-        const roundCanvas = renderRoundCanvas(c, size);
-        const blob = await canvasToBlob(roundCanvas);
-        return { folder, blob };
-      }),
-    );
-    for (const { folder, blob } of roundBlobs) {
-      resFolder.folder(folder)!.file("ic_launcher_round.png", blob);
-    }
-
-    // Play Store PNGs — use 2× supersample (already sufficient for 512/1024)
-    const play512 = renderCanvasAtSize(superCanvasPlay, 512);
-    const play512Blob = await canvasToBlob(play512);
-    zip.file("ic_launcher_playstore_512.png", play512Blob);
-
-    const play1024 = renderCanvasAtSize(superCanvasPlay, 1024);
-    const play1024Blob = await canvasToBlob(play1024);
-    zip.file("ic_launcher_playstore_1024.png", play1024Blob);
-
-    // WebP — lossy at 0.95 for good balance
-    const webpBlob = await canvasToBlob(play512, "image/webp", 0.95);
-    zip.file("ic_launcher_512.webp", webpBlob);
-
-    // Adaptive icons (API 26+)
+    // Adaptive icon definition (API 26+)
     const adaptiveFolder = resFolder.folder("mipmap-anydpi-v26")!;
-    adaptiveFolder.file(
-      "ic_launcher.xml",
-      `<?xml version="1.0" encoding="utf-8"?>
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background"/>
-    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
-</adaptive-icon>`,
-    );
-    adaptiveFolder.file(
-      "ic_launcher_round.xml",
-      `<?xml version="1.0" encoding="utf-8"?>
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background"/>
-    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
-</adaptive-icon>`,
+    adaptiveFolder.file(`${filename}.xml`, buildAdaptiveIconXml(filename));
+
+    // Play Store listing (512px, square-sharp like IconKitchen)
+    const play = await renderIcon(config, {
+      assetSize: { w: 512, h: 512 },
+      shape: "square-sharp",
+    });
+    zip.file("play_store_512.png", await canvasToBlob(play.canvas));
+
+    // Extra high-res Play Store
+    const playHi = await renderIcon(config, {
+      assetSize: { w: 1024, h: 1024 },
+      shape: "square-sharp",
+    });
+    zip.file(`${filename}_playstore_1024.png`, await canvasToBlob(playHi.canvas));
+
+    // WebP
+    zip.file(
+      `${filename}_512.webp`,
+      await canvasToBlob(play.canvas, "image/webp", 0.95),
     );
 
-    // Drawable vectors
-    const drawableFolder = resFolder.folder("drawable")!;
-    drawableFolder.file("ic_launcher_background.xml", buildAdaptiveBackgroundXml(config));
-    drawableFolder.file("ic_launcher_foreground.xml", buildAdaptiveForegroundXml(config, iconSvg));
+    // Per-density assets: adaptive layers at 108dp + legacy at 48dp
+    const legacyContent = LEGACY_CONTENT[config.shape] * 1; // dp value
+    for (const { folder, mult } of DENSITIES) {
+      const adaptiveSize = 108 * mult;
+      const contentSize = 72 * mult;
+      const layerOptions = {
+        assetSize: { w: adaptiveSize, h: adaptiveSize },
+        contentSize: { w: contentSize, h: contentSize },
+        shape: "square-sharp" as const,
+      };
 
-    // Monochrome (Android 13+)
-    if (config.monochromeEnabled) {
-      drawableFolder.file("ic_launcher_monochrome.xml", buildMonochromeXml(config, iconSvg));
+      const [bg, fg, mono] = await Promise.all([
+        renderIcon(config, { ...layerOptions, layer: "background" as const }),
+        renderIcon(config, { ...layerOptions, layer: "foreground" as const }),
+        renderIcon(config, {
+          ...layerOptions,
+          layer: "foreground" as const,
+          monochrome: true,
+        }),
+      ]);
+
+      const mipmapFolder = resFolder.folder(folder)!;
+      mipmapFolder.file(`${filename}_background.png`, await canvasToBlob(bg.canvas));
+      mipmapFolder.file(`${filename}_foreground.png`, await canvasToBlob(fg.canvas));
+      mipmapFolder.file(`${filename}_monochrome.png`, await canvasToBlob(mono.canvas));
+
+      // Legacy icon: shape + gloss effects (IconKitchen grade)
+      const legacySize = 48 * mult;
+      const legacy = await renderIcon(config, {
+        assetSize: { w: legacySize, h: legacySize },
+        contentSize: { w: legacyContent * mult, h: legacyContent * mult },
+        shape: config.shape,
+        finalEffects: legacyEffects(mult),
+      });
+      mipmapFolder.file(`${filename}.png`, await canvasToBlob(legacy.canvas));
+
+      // Legacy round icon (extra, keeps classic round bucket)
+      if (config.shape !== "circle") {
+        const round = await renderIcon(config, {
+          assetSize: { w: legacySize, h: legacySize },
+          contentSize: { w: 44 * mult, h: 44 * mult },
+          shape: "circle",
+          finalEffects: legacyEffects(mult),
+        });
+        mipmapFolder.file(
+          `${filename}_round.png`,
+          await canvasToBlob(round.canvas),
+        );
+      }
     }
 
-    // SVG
+    // SVG (vector with embedded font for text icons)
     const svgPadding = (config.padding / 100) * 512;
     const svgInnerSize = 512 - svgPadding * 2;
     let foregroundDataUrl: string | undefined;
@@ -641,10 +519,10 @@ export async function downloadAndroidIcons(
       iconSvg,
       embeddedFont,
     );
-    zip.file("ic_launcher.svg", svg);
+    zip.file(`${filename}.svg`, svg);
 
     const xml = generateAndroidVectorDrawable(config, 48, iconSvg);
-    zip.file("ic_launcher.xml", xml);
+    zip.file(`${filename}.xml`, xml);
 
     // README
     zip.file("README.txt", README_CONTENT);

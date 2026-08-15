@@ -85,7 +85,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
 
   return (
     <div
-      className={`flex flex-col items-center gap-1 ${isSmall ? "" : "py-4 bg-zinc-900/50"}`}
+      className={`flex flex-col items-center gap-1 ${isSmall ? "" : "py-4 bg-popover/50"}`}
     >
       <div
         ref={containerRef}
@@ -98,7 +98,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
         aria-valuemin={0}
         aria-valuemax={360}
         aria-valuetext={`${degrees} degrees`}
-        className={`relative rounded-full bg-zinc-800 border border-zinc-700 shadow-inner flex items-center justify-center cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`relative rounded-full bg-background border border-border shadow-inner flex items-center justify-center cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           isSmall ? "size-8" : "size-20 border-2"
         }`}
       >
@@ -106,7 +106,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
           [0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
             <div
               key={deg}
-              className="absolute w-0.5 h-1.5 bg-zinc-600 rounded-full"
+              className="absolute w-0.5 h-1.5 bg-border rounded-full"
               style={{
                 transform: `rotate(${deg}deg) translateY(-32px)`,
                 opacity: deg % 90 === 0 ? 1 : 0.5,
@@ -115,7 +115,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
           ))}
 
         <div
-          className={`${isSmall ? "size-1" : "size-2"} rounded-full bg-zinc-600 z-10 shadow-sm`}
+          className={`${isSmall ? "size-1" : "size-2"} rounded-full bg-border z-10 shadow-sm`}
         />
 
         <div
@@ -130,7 +130,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
             }`}
           />
           <div
-            className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary border border-zinc-900 shadow-[0_0_10px_rgba(var(--primary),0.6)] group-hover:scale-110 transition-transform ${
+            className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary border border-popover shadow-[0_0_10px_hsl(var(--primary)/0.6)] group-hover:scale-110 transition-transform ${
               isSmall ? "size-2.5" : "size-4 border-2"
             }`}
           />
@@ -139,10 +139,10 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
 
       {!isSmall && (
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Angle
           </span>
-          <div className="text-xs font-mono text-primary font-bold bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700 shadow-sm min-w-[45px] text-center">
+          <div className="text-xs font-mono text-primary font-bold bg-popover px-2 py-0.5 rounded border border-border shadow-sm min-w-[45px] text-center">
             {degrees}°
           </div>
         </div>
