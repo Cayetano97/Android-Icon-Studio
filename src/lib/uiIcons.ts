@@ -5,6 +5,7 @@ const UI_ICON_NAMES = [
   "Check",
   "ChevronDown",
   "ChevronRight",
+  "ChevronUp",
   "Download",
   "Link2",
   "Menu",

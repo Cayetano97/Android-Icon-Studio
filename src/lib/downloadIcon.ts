@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { parseCssGradient } from "@/lib/canvasGradient";
 import { cssColorToHex } from "@/lib/color";
+import { cssGradientToAndroid } from "@/lib/gradients";
 import {
   extractPathsFromSvg,
   extractLucideVectorPaths,
@@ -314,36 +315,61 @@ export function generateAndroidVectorDrawable(
   }
 
   const bg = config.background;
-  const isGradient = bg.includes("-gradient");
-  let bgFill = bg;
-  let gradientComment = "";
+  const androidGrad = cssGradientToAndroid(bg);
 
-  if (isGradient) {
-    const innerMatch = bg.match(/-gradient\(([^()]*(?:\([^()]*\)[^()]*)*)\)$/);
-    if (innerMatch) {
-      const parts = innerMatch[1]
-        .split(/,(?![^()]*\))/)
-        .map((x) => x.trim());
-      const firstStop = parts.find(
-        (p) => p.startsWith("rgb") || p.startsWith("#"),
-      );
-      if (firstStop) {
-        bgFill = firstStop.split(" ").slice(0, -1).join(" ");
-        if (!bgFill) bgFill = firstStop;
-      }
-      gradientComment = `\n    <!-- Gradient defined by background css: ${bg}. For API 24+ use <gradient> tag instead. -->`;
+  let bgElement: string;
+  let aaptNs = "";
+  if (!androidGrad) {
+  bgElement = `    <path
+      android:pathData="${bgPath}"
+    android:fillColor="${cssColorToHex(bg)}"/>`;
+  } else {
+  // Real gradient VectorDrawable (API 24+): nested <gradient> via aapt:attr.
+  // Same data source as the canvas/SVG preview → the design is preserved.
+  aaptNs = `\n    xmlns:aapt="http://schemas.android.com/aapt"`;
+  const items = androidGrad.items
+  .map((s) => `            <item android:offset="${s.offset.toFixed(3)}" android:color="${s.color}"/>`)
+  .join("\n");
+  let gradientTag: string;
+  if (androidGrad.type === "radial") {
+  const r = viewportSize / 2;
+    gradientTag = `<gradient
+                android:type="radial"
+                android:centerX="${r}"
+                android:centerY="${r}"
+                android:gradientRadius="${r}">\n${items}\n            </gradient>`;
+  } else {
+    // Same math as buildSvgGradientDef: the CSS angle is
+    // projected onto the 512 viewport diagonal.
+    const parsed = parseCssGradient(bg);
+    const angle = parsed?.angle ?? 180;
+  const angleRad = (angle - 90) * (Math.PI / 180);
+  const hw = viewportSize / 2;
+      const dist = Math.sqrt(hw * hw + hw * hw);
+      const x1 = Math.round(hw + Math.cos(angleRad) * dist);
+      const y1 = Math.round(hw + Math.sin(angleRad) * dist);
+      const x2 = Math.round(hw - Math.cos(angleRad) * dist);
+      const y2 = Math.round(hw - Math.sin(angleRad) * dist);
+      gradientTag = `<gradient
+                android:type="linear"
+                android:startX="${x2}"
+                android:startY="${y2}"
+                android:endX="${x1}"
+                android:endY="${y1}">\n${items}\n            </gradient>`;
     }
+    bgElement = `    <path
+        android:pathData="${bgPath}"
+        android:fillColor="${androidGrad.startColor}">
+        <aapt:attr name="android:fillColor">\n            ${gradientTag}\n        </aapt:attr>\n    </path>`;
   }
 
   return `<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
+<vector xmlns:android="http://schemas.android.com/apk/res/android"${aaptNs}
     android:width="${size}dp"
     android:height="${size}dp"
     android:viewportWidth="${viewportSize}"
-    android:viewportHeight="${viewportSize}">${gradientComment}
-    <path
-        android:pathData="${bgPath}"
-        android:fillColor="${bgFill}"/>
+    android:viewportHeight="${viewportSize}">
+${bgElement}
 ${pathData}
 </vector>`;
 }

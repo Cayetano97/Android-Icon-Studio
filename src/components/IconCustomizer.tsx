@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { IconConfig, IconShape, DarkTheme } from "@/types/icon";
 import { useUiIcons } from "@/lib/uiIcons";
 import { DegreePicker } from "./DegreePicker";
+import GradientTemplates from "./GradientTemplates";
+import SidebarSection from "./SidebarSection";
 import {
   solidToGradient,
   gradientToSolid,
@@ -239,7 +241,7 @@ function PopoverColorPicker({
   const swatchRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  const isGradient = value.includes("gradient");
+  const isGradient = value.toLowerCase().includes("gradient");
   // The picker library only understands rgb-style colors: rewrite any
   // hsl()/hsla() (e.g. from previously saved sessions) before handing
   // the value over, otherwise opening the popover throws.
@@ -376,43 +378,35 @@ function PopoverColorPicker({
 }
 
 // ---------------------------------------------------------------------------
-// Sections
+// Sections (content; collapsible headers are rendered by SidebarSection)
 // ---------------------------------------------------------------------------
 
-function SectionHeader({
-  title,
-  collapsible,
-  open,
-  onToggle,
-}: {
-  title: string;
-  collapsible?: boolean;
-  open?: boolean;
-  onToggle?: () => void;
-}) {
+function TransformDetails({ config, onChange }: Props) {
+  const [open, setOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem("android-icon-studio:section-transform") !== "closed";
+    } catch {
+      return true;
+    }
+  });
   const I = useUiIcons();
-  if (!collapsible) {
-    return <div className="ik-section-header mb-3 mt-5 first:mt-0">{title}</div>;
-  }
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="ik-section-header w-full mb-3 mt-5 first:mt-0 cursor-pointer select-none"
-      aria-expanded={open}
-    >
-      {title}
-      {open ? (
-        <I.ChevronDown size={14} className="shrink-0" />
-      ) : (
-        <I.ChevronRight size={14} className="shrink-0" />
-      )}
-    </button>
-  );
-}
+  const contentId = "sidebar-transform-details";
 
-function ForegroundSection({ config, onChange }: Props) {
-  const I = useUiIcons();
+  function toggle() {
+    setOpen((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(
+          "android-icon-studio:section-transform",
+          next ? "open" : "closed",
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
   const resetTransform = () =>
     onChange({
       foregroundScale: 1.0,
@@ -421,8 +415,100 @@ function ForegroundSection({ config, onChange }: Props) {
       foregroundRotation: 0,
     });
 
+  const isDefault =
+    config.foregroundScale === 1.0 &&
+    config.foregroundOffsetX === 0 &&
+    config.foregroundOffsetY === 0 &&
+    config.foregroundRotation === 0;
+
   return (
-    <div className="space-y-1">
+    <div className="rounded-lg border border-border/50 bg-background/40">
+      <div className="flex items-center gap-2 px-2 py-1">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-controls={contentId}
+          className="flex flex-1 items-center gap-1.5 py-1 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Transform
+          {open ? (
+            <I.ChevronDown size={13} className="shrink-0" aria-hidden />
+          ) : (
+            <I.ChevronRight size={13} className="shrink-0" aria-hidden />
+          )}
+          {!isDefault && (
+            <span className="size-1.5 rounded-full bg-primary shrink-0" aria-label="Modified" />
+          )}
+        </button>
+        {!isDefault && (
+          <button
+            type="button"
+            onClick={resetTransform}
+            title="Reset transform"
+            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary transition-colors"
+          >
+            <I.RotateCcw size={10} aria-hidden />
+            Reset
+          </button>
+        )}
+      </div>
+      <div
+        id={contentId}
+        role="region"
+        aria-label="Transform"
+        className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="overflow-hidden min-h-0">
+          <div className="space-y-1 px-2 pb-2">
+            <SliderRow
+              label="Scale"
+              value={config.foregroundScale}
+              display={config.foregroundScale.toFixed(2)}
+              min={0.5}
+              max={1.5}
+              step={0.05}
+              onChange={(v) => onChange({ foregroundScale: v })}
+            />
+            <SliderRow
+              label="Offset X"
+              value={config.foregroundOffsetX}
+              display={`${config.foregroundOffsetX}%`}
+              min={-50}
+              max={50}
+              step={1}
+              onChange={(v) => onChange({ foregroundOffsetX: v })}
+            />
+            <SliderRow
+              label="Offset Y"
+              value={config.foregroundOffsetY}
+              display={`${config.foregroundOffsetY}%`}
+              min={-50}
+              max={50}
+              step={1}
+              onChange={(v) => onChange({ foregroundOffsetY: v })}
+            />
+            <SliderRow
+              label="Rotation"
+              value={config.foregroundRotation}
+              display={`${config.foregroundRotation}°`}
+              min={0}
+              max={360}
+              step={1}
+              onChange={(v) => onChange({ foregroundRotation: v })}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ForegroundSection({ config, onChange }: Props) {
+  return (
+    <div className="space-y-1.5">
       <PropertyRow label="Icon Color">
         <PopoverColorPicker
           label="Icon"
@@ -443,57 +529,17 @@ function ForegroundSection({ config, onChange }: Props) {
         onChange={(padding) => onChange({ padding })}
       />
 
-      <div className="flex items-center justify-end pt-1 pb-0.5">
-        <button
-          type="button"
-          onClick={resetTransform}
-          className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary transition-colors"
-        >
-          <I.RotateCcw size={10} />
-          Reset transform
-        </button>
-      </div>
-      <SliderRow
-        label="Scale"
-        value={config.foregroundScale}
-        display={config.foregroundScale.toFixed(2)}
-        min={0.5}
-        max={1.5}
-        step={0.05}
-        onChange={(v) => onChange({ foregroundScale: v })}
-      />
-      <SliderRow
-        label="Offset X"
-        value={config.foregroundOffsetX}
-        display={`${config.foregroundOffsetX}%`}
-        min={-50}
-        max={50}
-        step={1}
-        onChange={(v) => onChange({ foregroundOffsetX: v })}
-      />
-      <SliderRow
-        label="Offset Y"
-        value={config.foregroundOffsetY}
-        display={`${config.foregroundOffsetY}%`}
-        min={-50}
-        max={50}
-        step={1}
-        onChange={(v) => onChange({ foregroundOffsetY: v })}
-      />
-      <SliderRow
-        label="Rotation"
-        value={config.foregroundRotation}
-        display={`${config.foregroundRotation}°`}
-        min={0}
-        max={360}
-        step={1}
-        onChange={(v) => onChange({ foregroundRotation: v })}
-      />
+      <TransformDetails config={config} onChange={onChange} />
     </div>
   );
 }
 
 function BackgroundSection({ config, onChange }: Props) {
+  // Templates only make sense in gradient mode. Same detection
+  // as PopoverColorPicker so Segment and templates stay in sync.
+  const isBackgroundGradient =
+    config.background?.toLowerCase().includes("gradient") ?? false;
+
   return (
     <div className="space-y-1">
       <PropertyRow label="Color">
@@ -504,6 +550,12 @@ function BackgroundSection({ config, onChange }: Props) {
           idSuffix="bg"
         />
       </PropertyRow>
+      {isBackgroundGradient && (
+        <GradientTemplates
+          current={config.background}
+          onSelect={(background) => onChange({ background })}
+        />
+      )}
       <PropertyRow label="Shape">
         <Segment
           value={config.shape}
@@ -515,18 +567,8 @@ function BackgroundSection({ config, onChange }: Props) {
   );
 }
 
-function MoreSection({ config, onChange }: Props) {
-  const [open, setOpen] = useState(false);
-
+function MoreContent({ config, onChange }: Props) {
   return (
-    <div>
-      <SectionHeader
-        title="More"
-        collapsible
-        open={open}
-        onToggle={() => setOpen((prev) => !prev)}
-      />
-      {open && (
         <div className="space-y-1">
           <PropertyRow label="Filename">
             <input
@@ -581,22 +623,26 @@ function MoreSection({ config, onChange }: Props) {
             </PropertyRow>
           )}
         </div>
-      )}
-    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Main component
+// Main component: compact accordion (M3 progressive disclosure) so the
+// sidebar fits without scrolling. State persists in localStorage.
 // ---------------------------------------------------------------------------
 
 function IconCustomizer({ config, onChange }: Props) {
   return (
-    <div className="space-y-1">
-      <ForegroundSection config={config} onChange={onChange} />
-      <SectionHeader title="Background" />
-      <BackgroundSection config={config} onChange={onChange} />
-      <MoreSection config={config} onChange={onChange} />
+    <div className="space-y-3">
+      <SidebarSection id="foreground" title="Foreground" defaultOpen>
+        <ForegroundSection config={config} onChange={onChange} />
+      </SidebarSection>
+      <SidebarSection id="background" title="Background" defaultOpen>
+        <BackgroundSection config={config} onChange={onChange} />
+      </SidebarSection>
+      <SidebarSection id="more" title="More" defaultOpen={false}>
+        <MoreContent config={config} onChange={onChange} />
+      </SidebarSection>
     </div>
   );
 }

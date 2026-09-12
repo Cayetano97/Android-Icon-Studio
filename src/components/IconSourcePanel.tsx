@@ -28,6 +28,16 @@ export default function IconSourcePanel({ config, onChange }: Props) {
   const [search, setSearch] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  // Collapsible icon grid: compact by default (3 rows) so the
+  // sidebar fits without scrolling; expandable on demand.
+  // Dynamic dvh height to adapt to the viewport (M3 adaptive spacing).
+  const [iconsExpanded, setIconsExpanded] = useState(() => {
+    try {
+      return window.localStorage.getItem("android-icon-studio:icons-expanded") === "1";
+    } catch {
+      return false;
+    }
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [iconNames, setIconNames] = useState<string[]>([]);
@@ -70,14 +80,29 @@ export default function IconSourcePanel({ config, onChange }: Props) {
     overscan: 5,
   });
 
-  // Re-measure the grid whenever the clipart tab becomes visible or the icon
-  // list finishes loading, so a stale zero-height measurement can never leave
-  // the picker blank.
+  // Re-measure the grid whenever the clipart tab becomes visible, the icon
+  // list finishes loading or the collapsed/expanded state changes, so a
+  // stale zero-height measurement can never leave the picker blank.
   useEffect(() => {
     if (config.source !== "clipart" || iconsLoading) return;
     const raf = requestAnimationFrame(() => virtualizer.measure());
     return () => cancelAnimationFrame(raf);
-  }, [config.source, iconsLoading, filtered.length, virtualizer]);
+  }, [config.source, iconsLoading, filtered.length, iconsExpanded, virtualizer]);
+
+  function toggleIconsExpanded() {
+    setIconsExpanded((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(
+          "android-icon-studio:icons-expanded",
+          next ? "1" : "0",
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   const selectedFont = useMemo(
     () =>
@@ -137,7 +162,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
       onValueChange={(v) => onChange({ source: v as IconSource })}
       className="w-full"
     >
-      <TabsList className="ik-segment w-full! mb-4 bg-transparent shadow-none rounded-full! p-1! gap-1">
+      <TabsList className="ik-segment w-full! mb-3 bg-transparent shadow-none rounded-full! p-1! gap-1">
         <TabsTrigger
           value="clipart"
           className="flex-1! min-w-0! px-2! text-[11px]! uppercase font-bold tracking-[0.2px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full! shadow-none!"
@@ -162,24 +187,35 @@ export default function IconSourcePanel({ config, onChange }: Props) {
         value="clipart"
         className="flex flex-col outline-none mt-0"
       >
-        <div className="relative group mb-3">
+        <div className="relative group mb-2.5">
           <Input
             placeholder="Search icons…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="relative h-9 bg-background/50 border-border/60 focus:border-primary/50 focus:ring-primary/20 transition-all rounded-lg pl-9 text-[13px]"
+            className="relative h-9 bg-background/50 border-border/60 focus:border-primary/50 focus:ring-primary/20 transition-all rounded-lg pl-9 pr-14 text-[13px]"
             spellCheck={false}
             autoComplete="off"
+            aria-label="Search icons"
           />
           <I.Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none"
             size={15}
           />
+          {!iconsLoading && !iconsError && filtered.length > 0 && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono tabular-nums text-muted-foreground/60 pointer-events-none">
+              {filtered.length}
+            </span>
+          )}
         </div>
 
         <div
           ref={gridRef}
-          className="h-[320px] overflow-y-auto pr-1 -mr-1 scrollbar-thin"
+          data-state={iconsExpanded ? "open" : "closed"}
+          className={`overflow-y-auto pr-1 -mr-1 scrollbar-thin transition-[height] duration-200 ease-out ${
+            iconsExpanded
+              ? "h-[clamp(220px,34dvh,340px)]"
+              : "h-[clamp(132px,19dvh,156px)]"
+          }`}
         >
           {iconsLoading ? (
             <IconGridSkeleton />
@@ -187,7 +223,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
             <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
               <span className="text-2xl">⚠️</span>
               <p className="text-[11px] text-muted-foreground max-w-[200px]">
-                No se pudieron cargar los iconos.
+                Could not load the icons.
               </p>
               <button
                 type="button"
@@ -258,9 +294,30 @@ export default function IconSourcePanel({ config, onChange }: Props) {
           </div>
           )}
         </div>
+
+        {!iconsLoading && !iconsError && filtered.length > 0 && (
+          <button
+            type="button"
+            onClick={toggleIconsExpanded}
+            aria-expanded={iconsExpanded}
+            className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary hover:bg-accent/40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {iconsExpanded ? (
+              <>
+                Show less
+                <I.ChevronUp size={14} aria-hidden />
+              </>
+            ) : (
+              <>
+                Show more · {filtered.length} icons
+                <I.ChevronDown size={14} aria-hidden />
+              </>
+            )}
+          </button>
+        )}
       </TabsContent>
 
-      <TabsContent value="text" className="space-y-5 outline-none mt-0">
+      <TabsContent value="text" className="space-y-4 outline-none mt-0">
         <div className="space-y-3">
           <span className="ik-section-header mb-0!">Icon Text</span>
           <Input
@@ -286,9 +343,9 @@ export default function IconSourcePanel({ config, onChange }: Props) {
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <span className="ik-section-header mb-0!">Font</span>
-          <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin">
+          <div className="grid grid-cols-2 gap-2 max-h-[112px] overflow-y-auto pr-1 scrollbar-thin">
             {SUPPORTED_FONTS.map((font) => (
               <button
                 type="button"
@@ -376,7 +433,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
           }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
-          className={`bg-background/40 border border-border/50 p-8 rounded-2xl flex flex-col items-center justify-center min-h-[240px] gap-6 transition-all hover:bg-accent/20 ${
+          className={`bg-background/40 border border-border/50 p-5 rounded-2xl flex flex-col items-center justify-center min-h-[176px] gap-5 transition-all hover:bg-accent/20 ${
             isDragOver ? "border-primary border-dashed bg-primary/5" : ""
           }`}
         >
@@ -433,7 +490,7 @@ export default function IconSourcePanel({ config, onChange }: Props) {
 }
 
 function IconGridSkeleton() {
-  const rows = 5;
+  const rows = 3;
   const cols = 6;
   return (
     <div

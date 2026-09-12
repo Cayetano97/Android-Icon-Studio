@@ -64,19 +64,24 @@ export default function Sidebar({
 
       <aside
         ref={sidebarRef}
+        aria-label="Icon settings"
         className={`
           fixed lg:static inset-y-0 left-0 z-20 top-[57px] lg:top-0
-          border-r border-border/60 bg-background flex flex-col shrink-0 overflow-y-auto
+          border-r border-border/60 bg-background flex flex-col shrink-0 min-h-0
+          max-h-[calc(100dvh-57px)] lg:max-h-none lg:h-full
+          overflow-hidden
           transition-transform duration-200
           w-[min(85vw,380px)] lg:w-[var(--sidebar-width)]
           ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
-        <div className="flex-1 p-4 sm:p-6 pb-12">
+        {/* Compact column content: fits without scrolling on a regular
+            viewport (collapsed icons + accordion). overflow-y-auto is only
+            a fallback for very short windows or gradient + all expanded. */}
+        <div className="sidebar-compact flex-1 min-h-0 flex flex-col gap-4 p-4 pb-4 overflow-y-auto overscroll-contain scrollbar-thin">
           <IconSourcePanel config={config} onChange={onChange} />
-          <div className="mt-8">
-            <IconCustomizer config={config} onChange={onChange} />
-          </div>
+          <div className="h-px shrink-0 bg-border/60" aria-hidden />
+          <IconCustomizer config={config} onChange={onChange} />
         </div>
       </aside>
     </>

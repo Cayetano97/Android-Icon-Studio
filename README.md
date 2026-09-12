@@ -20,14 +20,14 @@
 
 | Technology                            | Purpose                                | Version  |
 | :------------------------------------ | :------------------------------------- | :------- |
-| **React**                             | Core UI library                        | 19.2.8   |
-| **Vite**                              | Build tool and development environment | 8.2.1    |
+| **React**                             | Core UI library                        | 19.3.0   |
+| **Vite**                              | Build tool and development environment | 8.3.0    |
 | **TypeScript**                        | Robust development and typing          | 6.0.3    |
 | **Tailwind CSS**                      | Modern styling and layout              | 4.3.3    |
-| **Lucide React**                      | Minimalist iconography                 | 1.31.0   |
+| **Lucide React**                      | Minimalist iconography                 | 1.45.0   |
 | **Radix UI**                          | Tabs components                        | 1.1.21   |
-| **TanStack Virtual**                  | Virtualized icon list                  | 3.14.9   |
-| **JSZip**                             | ZIP file generation for exports        | 3.10.1   |
+| **TanStack Virtual**                  | Virtualized icon list                  | 3.14.12  |
+| **JSZip**                             | ZIP file generation for exports        | 3.10.2   |
 | **File Saver**                        | Client-side file saving                | 2.0.5    |
 | **React Best Gradient Color Picker**  | Advanced gradient customization        | 3.0.14   |
 | **Vite PWA**                          | Progressive Web App support            | 1.3.0    |
