@@ -67,6 +67,15 @@ export function extractTwoColors(css: string): { c1: string; c2: string } {
   return { c1: solid, c2: darkened(css) };
 }
 
+/** Serializes stops back to CSS: explicit position only when finite. */
+function serializeStops(stops: { color: string; position: number }[]): string {
+  return stops
+    .map((s) =>
+      Number.isFinite(s.position) ? `${s.color} ${s.position}%` : s.color,
+    )
+    .join(", ");
+}
+
 /**
  * Replaces the edge colors (first/last stop) while keeping the
  * current gradient structure (angle, positions, middle stops).
@@ -77,15 +86,14 @@ export function replaceEdgeColors(css: string, nC1: string, nC2: string): string
   if (!parsed || parsed.stops.length <= 1) {
     return GRADIENT_PATTERNS[0].build(nC1, nC2);
   }
-  const stops = parsed.stops.map((s, i, arr) => {
-    const pos = Number.isFinite(s.position) ? ` ${s.position}%` : "";
-    const col = i === 0 ? nC1 : i === arr.length - 1 ? nC2 : s.color;
-    return `${col}${pos}`;
-  });
+  const stops = parsed.stops.map((s, i, arr) => ({
+    color: i === 0 ? nC1 : i === arr.length - 1 ? nC2 : s.color,
+    position: s.position,
+  }));
   if (parsed.type === "radial") {
-    return `radial-gradient(circle at center, ${stops.join(", ")})`;
+    return `radial-gradient(circle at center, ${serializeStops(stops)})`;
   }
-  return `linear-gradient(${parsed.angle}deg, ${stops.join(", ")})`;
+  return `linear-gradient(${parsed.angle}deg, ${serializeStops(stops)})`;
 }
 
 export const GRADIENT_PATTERNS: GradientPattern[] = [
@@ -170,4 +178,57 @@ export const GRADIENT_PATTERNS: GradientPattern[] = [
 /** Normalizes CSS to compare templates (ignores whitespace/case). */
 export function normCss(css: string): string {
   return css.replace(/\s+/g, "").toLowerCase();
+}
+
+/** Active template for a gradient, or null when it is custom. */
+export function findActivePattern(css: string): GradientPattern | null {
+  const { c1, c2 } = extractTwoColors(css);
+  const norm = normCss(css);
+  return (
+    GRADIENT_PATTERNS.find((p) => normCss(p.build(c1, c2)) === norm) ?? null
+  );
+}
+
+/**
+ * Applies new base colors A/B honoring the active template: a template is
+ * rebuilt from scratch (so Trio/Halo recompute their middle stops) while a
+ * custom gradient only swaps its edge stops.
+ */
+export function applyTwoColors(css: string, c1: string, c2: string): string {
+  const active = findActivePattern(css);
+  return active ? active.build(c1, c2) : replaceEdgeColors(css, c1, c2);
+}
+
+/** "linear" | "radial" for a parseable gradient, null otherwise. */
+export function getGradientType(css: string): "linear" | "radial" | null {
+  return parseCssGradient(css)?.type ?? null;
+}
+
+/** Angle in degrees for a linear gradient, null for radial/unknown. */
+export function getGradientAngle(css: string): number | null {
+  const parsed = parseCssGradient(css);
+  return parsed?.type === "linear" ? parsed.angle : null;
+}
+
+/** Rewrites the angle of a linear gradient, preserving type and stops. */
+export function setGradientAngle(css: string, angleDeg: number): string {
+  const parsed = parseCssGradient(css);
+  if (!parsed || parsed.type !== "linear") return css;
+  return `linear-gradient(${Math.round(angleDeg)}deg, ${serializeStops(parsed.stops)})`;
+}
+
+/**
+ * Switches between linear and radial, preserving the color stops.
+ * Linear always restarts from the icon-standard 135deg diagonal.
+ */
+export function setGradientType(
+  css: string,
+  type: "linear" | "radial",
+): string {
+  const parsed = parseCssGradient(css);
+  if (!parsed || parsed.type === type) return css;
+  if (type === "radial") {
+    return `radial-gradient(circle at center, ${serializeStops(parsed.stops)})`;
+  }
+  return `linear-gradient(135deg, ${serializeStops(parsed.stops)})`;
 }

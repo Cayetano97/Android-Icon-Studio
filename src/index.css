@@ -159,6 +159,27 @@ body {
   transform-origin: 50% 0%;
 }
 
+/* ---------------------------------------------------------------------------
+ * Gradient template grid
+ * ------------------------------------------------------------------------- */
+
+/* Container-driven columns: 3-up in a narrow sidebar, 4-up when there is
+ * room. The sidebar is user-resizable, so viewport media queries are not
+ * enough — a container query tracks the actual available width. */
+.ik-gradient-grid-wrap {
+  container-type: inline-size;
+}
+.ik-gradient-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+@container (min-width: 230px) {
+  .ik-gradient-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 /* Tooltip */
 .ik-tooltip {
   position: absolute;

@@ -44,7 +44,9 @@ const USER_SLOT = 2;
 const APP_SLOTS = [0, 1, 3];
 
 interface MockupImages {
+  /** Phone / home-screen icon: always the current design, so every edit shows. */
   main: string;
+  /** Monochrome variant shown as a secondary "Themed" preview when enabled. */
   themed: string | null;
   large: string;
 }
@@ -563,11 +565,10 @@ function DeviceMockup({
             }}
           >
             <img
-              src={images.themed ?? images.main}
+              src={images.main}
               alt="Your app"
               draggable={false}
-              className="h-full w-full rounded-full object-contain"
-              style={{ background: "transparent" }}
+              className="h-full w-full object-contain"
             />
           </div>
           <HomeLabel x={userX} top={GRID_TOP + HOME_ICON_SIZE + 5} label="Your app" isDark={isDark} />
@@ -612,11 +613,22 @@ function DeviceMockup({
   );
 }
 
-function IconCard({ src }: { src: string }) {
+function IconCard({
+  src,
+  themedSrc,
+}: {
+  src: string;
+  themedSrc: string | null;
+}) {
   return (
     <div
       className="absolute flex flex-col items-center"
-      style={{ left: 0, top: ICON_CARD_Y, width: ICON_CARD_SIZE }}
+      style={{
+        left: 0,
+        // Keep the block optically centered when the themed chip is present.
+        top: ICON_CARD_Y - (themedSrc ? 29 : 0),
+        width: ICON_CARD_SIZE,
+      }}
     >
       <div
         className="ik-checkerboard rounded-[2rem] border border-border/70"
@@ -645,6 +657,31 @@ function IconCard({ src }: { src: string }) {
       >
         Your app
       </span>
+      {/* Secondary preview of the monochrome (Android 13+) layer. The phone
+          always shows the actual design so edits stay visible there. */}
+      {themedSrc && (
+        <div className="flex items-center gap-2" style={{ marginTop: 18 }}>
+          <span
+            className="shrink-0 overflow-hidden rounded-full border border-border/70 bg-muted/60"
+            style={{ width: 40, height: 40, padding: 3 }}
+          >
+            <img
+              src={themedSrc}
+              alt="Themed icon preview"
+              draggable={false}
+              className="h-full w-full object-contain"
+            />
+          </span>
+          <span
+            className="text-left text-muted-foreground"
+            style={{ fontSize: 10, lineHeight: "13px" }}
+          >
+            Themed
+            <br />
+            Android 13+
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -702,7 +739,7 @@ function IconPreview({ config, onIconSvg, appThemeDark }: {
   return (
     <div className="flex h-full min-h-0 w-full items-center justify-center p-5">
       <ScaledStage width={STAGE_W} height={STAGE_H}>
-        <IconCard src={images.large} />
+        <IconCard src={images.large} themedSrc={images.themed} />
         <div className="absolute" style={{ left: ICON_CARD_SIZE + STAGE_GAP }}>
           <DeviceMockup images={images} isDark={isDark} />
         </div>

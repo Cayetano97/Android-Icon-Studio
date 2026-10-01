@@ -2,7 +2,8 @@ import type { LucideIcon } from "lucide-react";
 // Per-icon modules from the package dist: importing the barrel here would make
 // the dynamic import in `@/lib/lucideIcons` ineffective (rolldown keeps a
 // statically imported module in the entry chunk), pulling the whole ~750 KB
-// icon set into the initial bundle. These 16 default imports stay tiny.
+// icon set into the initial bundle. These 17 default imports stay tiny.
+import ArrowRightLeft from "lucide-react/dist/esm/icons/arrow-right-left.mjs";
 import Check from "lucide-react/dist/esm/icons/check.mjs";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.mjs";
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.mjs";
@@ -21,6 +22,7 @@ import Upload from "lucide-react/dist/esm/icons/upload.mjs";
 import X from "lucide-react/dist/esm/icons/x.mjs";
 
 export const UI_ICON_NAMES = [
+  "ArrowRightLeft",
   "Check",
   "ChevronDown",
   "ChevronRight",
@@ -47,6 +49,7 @@ export type UiIconName = (typeof UI_ICON_NAMES)[number];
  * and clipart rendering load it through `@/lib/lucideIcons`.
  */
 const uiIcons: Record<UiIconName, LucideIcon> = {
+  ArrowRightLeft,
   Check,
   ChevronDown,
   ChevronRight,
