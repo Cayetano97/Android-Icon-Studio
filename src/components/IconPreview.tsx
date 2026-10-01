@@ -1,14 +1,15 @@
 import { useRef, useEffect, memo, useState, type ReactNode } from "react";
-import { IconConfig, DarkTheme } from "@/types/icon";
-import { renderToStaticMarkup } from "react-dom/server";
-import { loadIcon, ensureIconsLoaded } from "@/lib/lucideIcons";
+import type { IconConfig, DarkTheme } from "@/types/icon";
+import { buildIconSvgMarkup } from "@/lib/lucideIcons";
 import { cssColorToHex } from "@/lib/color";
 import { renderIcon } from "@/lib/iconRenderer";
 import {
-  AppIcon,
   HOME_APPS,
   HOME_ROW2_APPS,
   DOCK_APPS,
+} from "@/components/realAppsData";
+import {
+  AppIcon,
   GoogleGLogo,
   MicGlyph,
   LensGlyph,
@@ -87,7 +88,7 @@ function useMockupImages(
                   background: isDark
                     ? "rgba(255,255,255,0.22)"
                     : "rgba(0,0,0,0.10)",
-                  foregroundColor: isDark ? "#ffffff" : "#3c4043",
+                  foregroundColor: current.monochromeColor,
                 },
                 {
                   assetSize: { w: ICON_PREVIEW_SIZE, h: ICON_PREVIEW_SIZE },
@@ -116,9 +117,11 @@ function useMockupImages(
       }
     }
 
-    renderAll();
+    // Trailing debounce: rapid slider drags coalesce into one render pass.
+    const timer = window.setTimeout(renderAll, 80);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [
     config.clipartName,
@@ -136,6 +139,7 @@ function useMockupImages(
     config.foregroundOffsetY,
     config.foregroundRotation,
     config.monochromeEnabled,
+    config.monochromeColor,
     darkTheme,
     appThemeDark,
   ]);
@@ -661,15 +665,12 @@ function IconPreview({ config, onIconSvg, appThemeDark }: {
     if (config.source !== "clipart") return;
     let cancelled = false;
     (async () => {
-      await ensureIconsLoaded();
-      if (cancelled) return;
-      const Icon = loadIcon(config.clipartName);
-      if (!Icon) return;
       try {
-        const svg = renderToStaticMarkup(
-          <Icon size={512} color={cssColorToHex(config.foregroundColor)} strokeWidth={1.5} />,
+        const svg = await buildIconSvgMarkup(
+          config.clipartName,
+          cssColorToHex(config.foregroundColor),
         );
-        onIconSvg?.(svg);
+        if (!cancelled && svg) onIconSvg?.(svg);
       } catch (error) {
         console.error("Failed to render clipart SVG markup:", error);
       }

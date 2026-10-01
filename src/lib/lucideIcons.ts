@@ -1,3 +1,5 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { LucideIcon } from "lucide-react";
 
 export type LucideIconName = string;
@@ -62,13 +64,34 @@ export async function ensureIconsLoaded(): Promise<void> {
 /**
  * Safely retrieve a Lucide icon component by name.
  * Returns null until the lazy module has been loaded (see ensureIconsLoaded).
+ * Stored/shareable names can be kebab-case, lowercased or renamed, so on a
+ * direct miss we fall back to a normalized match against the icon map keys.
  */
 export function loadIcon(name: string): LucideIcon | null {
   if (!iconMap) return null;
-  const icon = iconMap[name];
-  if (!icon) {
-    console.warn(`Lucide icon "${name}" not found`);
-    return null;
+  const direct = iconMap[name];
+  if (direct) return direct;
+  const canonical = name.replace(/[-_\s]+/g, "").toLowerCase();
+  for (const key of Object.keys(iconMap)) {
+    if (key.toLowerCase() === canonical) return iconMap[key];
   }
-  return icon;
+  console.warn(`Lucide icon "${name}" not found`);
+  return null;
+}
+
+/**
+ * Renders a Lucide icon to a standalone SVG markup string, loading the icon
+ * module on demand. Returns null when the icon cannot be resolved.
+ */
+export async function buildIconSvgMarkup(
+  name: string,
+  color: string,
+  size = 512,
+): Promise<string | null> {
+  await ensureIconsLoaded();
+  const Icon = loadIcon(name);
+  if (!Icon) return null;
+  return renderToStaticMarkup(
+    createElement(Icon, { size, color, strokeWidth: 1.5 }),
+  );
 }

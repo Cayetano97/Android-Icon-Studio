@@ -8,6 +8,13 @@
       name="description"
       content="Quickly generate high-quality adaptive app icons for Android."
     />
+    <meta property="og:title" content="Android Icon Studio" />
+    <meta
+      property="og:description"
+      content="Create adaptive Android icons with real-time preview and export."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
     <title>Android Icon Studio</title>
 
     <!-- Favicons -->
@@ -31,12 +38,16 @@
     <!-- Anti-FOUC: apply theme before paint -->
     <script>
       (function () {
-        var t = localStorage.getItem("theme");
-        var d = t
-          ? t === "dark"
-          : window.matchMedia &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (d) document.documentElement.classList.add("dark");
+        try {
+          var t = localStorage.getItem("theme");
+          var d = t
+            ? t === "dark"
+            : window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (d) document.documentElement.classList.add("dark");
+        } catch (e) {
+          /* storage blocked: keep default theme */
+        }
       })();
     </script>
   </head>

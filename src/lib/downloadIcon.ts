@@ -1,16 +1,18 @@
-import { IconConfig, IconShape } from "@/types/icon";
+import type { IconConfig, IconShape } from "@/types/icon";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
-import { parseCssGradient } from "@/lib/canvasGradient";
+import { getCssGradientLine, parseCssGradient } from "@/lib/canvasGradient";
 import { cssColorToHex } from "@/lib/color";
 import { cssGradientToAndroid } from "@/lib/gradients";
+import { SUPPORTED_FONTS } from "@/lib/fonts";
+import { sanitizeResourceName } from "@/lib/utils";
 import {
   extractPathsFromSvg,
   extractLucideVectorPaths,
   getShapeSvgClip,
   getShapeSvgPath,
 } from "@/lib/svgPathUtils";
-import { renderIcon, Effect } from "@/lib/iconRenderer";
+import { renderIcon, type Effect } from "@/lib/iconRenderer";
 
 const SUPERSAMPLE_FACTOR_PLAY = 2;
 
@@ -113,7 +115,7 @@ function createHighQualityCanvas(
   const c = document.createElement("canvas");
   c.width = width;
   c.height = height;
-  const ctx = c.getContext("2d", { willReadFrequently: true })!;
+  const ctx = c.getContext("2d")!;
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   return c;
@@ -151,20 +153,14 @@ function buildSvgGradientDef(
   };
 
   if (parsed.type === "linear") {
-    const angleRad = (parsed.angle - 90) * (Math.PI / 180);
-    const distance = Math.sqrt(hw * hw + hh * hh);
-    const x1 = Math.round(hw + Math.cos(angleRad) * distance);
-    const y1 = Math.round(hh + Math.sin(angleRad) * distance);
-    const x2 = Math.round(hw - Math.cos(angleRad) * distance);
-    const y2 = Math.round(hh - Math.sin(angleRad) * distance);
-
+    const line = getCssGradientLine(parsed.angle, size, size);
     const stopTags = parsed.stops.map(formatStop).join("\n");
-    const defs = `<linearGradient id="bgGrad" gradientUnits="userSpaceOnUse" x1="${x2}" y1="${y2}" x2="${x1}" y2="${y1}">\n${stopTags}\n  </linearGradient>`;
+    const defs = `<linearGradient id="bgGrad" gradientUnits="userSpaceOnUse" x1="${Math.round(line.x1)}" y1="${Math.round(line.y1)}" x2="${Math.round(line.x2)}" y2="${Math.round(line.y2)}">\n${stopTags}\n  </linearGradient>`;
     return { defs, fillRef: "url(#bgGrad)" };
   }
 
   const stopTags = parsed.stops.map(formatStop).join("\n");
-  const defs = `<radialGradient id="bgGrad" gradientUnits="userSpaceOnUse" cx="${hw}" cy="${hh}" r="${Math.max(hw, hh)}">\n${stopTags}\n  </radialGradient>`;
+  const defs = `<radialGradient id="bgGrad" gradientUnits="userSpaceOnUse" cx="${hw}" cy="${hh}" r="${Math.round(Math.hypot(hw, hh))}">\n${stopTags}\n  </radialGradient>`;
   return { defs, fillRef: "url(#bgGrad)" };
 }
 
@@ -181,8 +177,9 @@ async function fetchFontAsBase64(
   fontFamily: string,
   fontWeight: number,
 ): Promise<string | null> {
+  if (!SUPPORTED_FONTS.some((f) => f.family === fontFamily)) return null;
   try {
-    const cssUrl = `https://fonts.googleapis.com/css2?family=${fontFamily.replace(/ /g, "+")}:wght@${fontWeight}&display=swap`;
+    const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily).replace(/%20/g, "+")}:wght@${fontWeight}&display=swap`;
     const cssResp = await fetch(cssUrl);
     if (!cssResp.ok) return null;
     const cssText = await cssResp.text();
@@ -234,6 +231,9 @@ export function generateSvg(
 ): string {
   const padding = (config.padding / 100) * size;
   const innerSize = size - padding * 2;
+  const fontSupported = SUPPORTED_FONTS.some(
+    (f) => f.family === config.fontFamily,
+  );
   const { defs: gradientDef, fillRef } = buildSvgGradientDef(config, size);
   const clipDef = getShapeSvgClip(config.shape, size);
 
@@ -241,7 +241,7 @@ export function generateSvg(
   if (gradientDef) defsParts.push(gradientDef);
   if (clipDef) defsParts.push(clipDef);
 
-  if (embeddedFont) {
+  if (embeddedFont && fontSupported) {
     defsParts.push(`<style>${embeddedFont}</style>`);
   }
 
@@ -253,7 +253,7 @@ export function generateSvg(
   if (config.source === "text") {
     const yOffset = config.fontFamily === "Bebas Neue" ? 4 : 0;
     const fgColor = svgSafeColor(config.foregroundColor);
-    foregroundContent = `<text x="${size / 2}" y="${size / 2 + yOffset}" fill="${fgColor}" font-family="'${config.fontFamily}', sans-serif" font-weight="${config.fontWeight}" font-size="${innerSize * 0.5}" text-anchor="middle" dominant-baseline="central" text-rendering="optimizeLegibility">${escapeXml(config.text)}</text>`;
+    foregroundContent = `<text x="${size / 2}" y="${size / 2 + yOffset}" fill="${fgColor}" font-family="'${escapeXml(config.fontFamily)}', sans-serif" font-weight="${config.fontWeight}" font-size="${innerSize * 0.75}" text-anchor="middle" dominant-baseline="central" text-rendering="optimizeLegibility">${escapeXml(config.text)}</text>`;
   } else if (config.source === "clipart" && iconSvgMarkup) {
     const vectorPaths = extractLucideVectorPaths(
       iconSvgMarkup,
@@ -294,10 +294,9 @@ export function generateAndroidVectorDrawable(
   if (config.source === "clipart" && iconSvg) {
     pathData = extractPathsFromSvg(iconSvg, padding, innerSize);
   } else if (config.source === "text") {
-    pathData = `    <path
-        android:pathData="M${padding},${padding}h${innerSize}v${innerSize}h-${innerSize}z"
-        android:fillColor="${config.foregroundColor}"/>
-    <!-- Note: Text icons should be replaced with actual vector paths for production -->`;
+    // Text glyphs cannot be represented as vector paths here; the SVG export
+    // carries them instead.
+    pathData = `    <!-- Text icons cannot be represented as a VectorDrawable; use the exported SVG instead -->`;
   }
 
   let bgPath = "";
@@ -320,42 +319,36 @@ export function generateAndroidVectorDrawable(
   let bgElement: string;
   let aaptNs = "";
   if (!androidGrad) {
-  bgElement = `    <path
-      android:pathData="${bgPath}"
-    android:fillColor="${cssColorToHex(bg)}"/>`;
+    bgElement = `    <path
+        android:pathData="${bgPath}"
+        android:fillColor="${cssColorToHex(bg)}"/>`;
   } else {
-  // Real gradient VectorDrawable (API 24+): nested <gradient> via aapt:attr.
-  // Same data source as the canvas/SVG preview → the design is preserved.
-  aaptNs = `\n    xmlns:aapt="http://schemas.android.com/aapt"`;
-  const items = androidGrad.items
-  .map((s) => `            <item android:offset="${s.offset.toFixed(3)}" android:color="${s.color}"/>`)
-  .join("\n");
-  let gradientTag: string;
-  if (androidGrad.type === "radial") {
-  const r = viewportSize / 2;
-    gradientTag = `<gradient
+    // Real gradient VectorDrawable (API 24+): nested <gradient> via aapt:attr.
+    // Same data source as the canvas/SVG preview → the design is preserved.
+    aaptNs = `\n    xmlns:aapt="http://schemas.android.com/aapt"`;
+    const items = androidGrad.items
+      .map((s) => `            <item android:offset="${s.offset.toFixed(3)}" android:color="${s.color}"/>`)
+      .join("\n");
+    let gradientTag: string;
+    if (androidGrad.type === "radial") {
+      const r = Math.hypot(viewportSize / 2, viewportSize / 2);
+      gradientTag = `<gradient
                 android:type="radial"
-                android:centerX="${r}"
-                android:centerY="${r}"
-                android:gradientRadius="${r}">\n${items}\n            </gradient>`;
-  } else {
-    // Same math as buildSvgGradientDef: the CSS angle is
-    // projected onto the 512 viewport diagonal.
-    const parsed = parseCssGradient(bg);
-    const angle = parsed?.angle ?? 180;
-  const angleRad = (angle - 90) * (Math.PI / 180);
-  const hw = viewportSize / 2;
-      const dist = Math.sqrt(hw * hw + hw * hw);
-      const x1 = Math.round(hw + Math.cos(angleRad) * dist);
-      const y1 = Math.round(hw + Math.sin(angleRad) * dist);
-      const x2 = Math.round(hw - Math.cos(angleRad) * dist);
-      const y2 = Math.round(hw - Math.sin(angleRad) * dist);
+                android:centerX="${viewportSize / 2}"
+                android:centerY="${viewportSize / 2}"
+                android:gradientRadius="${Math.round(r)}">\n${items}\n            </gradient>`;
+    } else {
+      // Same math as buildSvgGradientDef: CSS gradient-line geometry over
+      // the 512 viewport.
+      const parsed = parseCssGradient(bg);
+      const angle = parsed?.angle ?? 180;
+      const line = getCssGradientLine(angle, viewportSize, viewportSize);
       gradientTag = `<gradient
                 android:type="linear"
-                android:startX="${x2}"
-                android:startY="${y2}"
-                android:endX="${x1}"
-                android:endY="${y1}">\n${items}\n            </gradient>`;
+                android:startX="${Math.round(line.x1)}"
+                android:startY="${Math.round(line.y1)}"
+                android:endX="${Math.round(line.x2)}"
+                android:endY="${Math.round(line.y2)}">\n${items}\n            </gradient>`;
     }
     bgElement = `    <path
         android:pathData="${bgPath}"
@@ -374,12 +367,17 @@ ${pathData}
 </vector>`;
 }
 
-function buildAdaptiveIconXml(filename: string): string {
+function buildAdaptiveIconXml(
+  filename: string,
+  monochromeEnabled: boolean,
+): string {
+  const monochrome = monochromeEnabled
+    ? `\n  <monochrome android:drawable="@mipmap/${filename}_monochrome"/>`
+    : "";
   return `<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
   <background android:drawable="@mipmap/${filename}_background"/>
-  <foreground android:drawable="@mipmap/${filename}_foreground"/>
-  <monochrome android:drawable="@mipmap/${filename}_monochrome"/>
+  <foreground android:drawable="@mipmap/${filename}_foreground"/>${monochrome}
 </adaptive-icon>`;
 }
 
@@ -395,17 +393,20 @@ Installation:
 Files:
 - res/mipmap-anydpi-v26/{filename}.xml      Adaptive icon definition
 - res/mipmap-*/{filename}.png               Legacy launcher icons (48dp)
+- res/mipmap-*/{filename}_round.png         Round legacy icon (only when shape is not circle)
 - res/mipmap-*/{filename}_background.png    Adaptive background layer (108dp)
 - res/mipmap-*/{filename}_foreground.png    Adaptive foreground layer (108dp)
-- res/mipmap-*/{filename}_monochrome.png    Monochrome layer (Android 13+)
+- res/mipmap-*/{filename}_monochrome.png    Monochrome layer (included when the themed-icon switch is enabled)
 - play_store_512.png                        Play Store listing (512px)
 - {filename}_playstore_1024.png             High-res Play Store extra
 - {filename}_512.webp                       WebP version
-- {filename}.svg                            Scalable vector version
+- {filename}.svg                            Scalable vector version (carries text glyphs)
 - {filename}.xml                            Android Vector Drawable
 
 Note: Adaptive layers are 108x108dp with content within the 72x72dp
 safe zone, matching the Android Studio icon wizard output.
+Note: Text icons export a background-only VectorDrawable; the SVG file
+carries the rendered text.
 `;
 
 export async function downloadAndroidIcons(
@@ -414,14 +415,16 @@ export async function downloadAndroidIcons(
 ) {
   try {
     const zip = new JSZip();
-    const filename = (config.filename || "ic_launcher")
-      .replace(/[^a-z0-9_]/gi, "_");
+    const filename = sanitizeResourceName(config.filename);
 
     const resFolder = zip.folder("res")!;
 
     // Adaptive icon definition (API 26+)
     const adaptiveFolder = resFolder.folder("mipmap-anydpi-v26")!;
-    adaptiveFolder.file(`${filename}.xml`, buildAdaptiveIconXml(filename));
+    adaptiveFolder.file(
+      `${filename}.xml`,
+      buildAdaptiveIconXml(filename, config.monochromeEnabled),
+    );
 
     // Play Store listing (512px, square-sharp like IconKitchen)
     const play = await renderIcon(config, {
@@ -444,7 +447,8 @@ export async function downloadAndroidIcons(
     );
 
     // Per-density assets: adaptive layers at 108dp + legacy at 48dp
-    const legacyContent = LEGACY_CONTENT[config.shape] * 1; // dp value
+    const legacyContent = LEGACY_CONTENT[config.shape] ?? 44; // dp value
+    const legacyDp = Number.isFinite(legacyContent) ? legacyContent : 44;
     for (const { folder, mult } of DENSITIES) {
       const adaptiveSize = 108 * mult;
       const contentSize = 72 * mult;
@@ -457,25 +461,33 @@ export async function downloadAndroidIcons(
       const [bg, fg, mono] = await Promise.all([
         renderIcon(config, { ...layerOptions, layer: "background" as const }),
         renderIcon(config, { ...layerOptions, layer: "foreground" as const }),
-        renderIcon(config, {
-          ...layerOptions,
-          layer: "foreground" as const,
-          monochrome: true,
-        }),
+        config.monochromeEnabled
+          ? renderIcon(config, {
+              ...layerOptions,
+              layer: "foreground" as const,
+              monochrome: true,
+            })
+          : Promise.resolve(null),
       ]);
 
       const mipmapFolder = resFolder.folder(folder)!;
       mipmapFolder.file(`${filename}_background.png`, await canvasToBlob(bg.canvas));
       mipmapFolder.file(`${filename}_foreground.png`, await canvasToBlob(fg.canvas));
-      mipmapFolder.file(`${filename}_monochrome.png`, await canvasToBlob(mono.canvas));
+      if (mono) {
+        mipmapFolder.file(
+          `${filename}_monochrome.png`,
+          await canvasToBlob(mono.canvas),
+        );
+      }
 
       // Legacy icon: shape + gloss effects (IconKitchen grade)
       const legacySize = 48 * mult;
       const legacy = await renderIcon(config, {
         assetSize: { w: legacySize, h: legacySize },
-        contentSize: { w: legacyContent * mult, h: legacyContent * mult },
+        contentSize: { w: legacyDp * mult, h: legacyDp * mult },
         shape: config.shape,
         finalEffects: legacyEffects(mult),
+        clipForeground: true,
       });
       mipmapFolder.file(`${filename}.png`, await canvasToBlob(legacy.canvas));
 
@@ -486,6 +498,7 @@ export async function downloadAndroidIcons(
           contentSize: { w: 44 * mult, h: 44 * mult },
           shape: "circle",
           finalEffects: legacyEffects(mult),
+          clipForeground: true,
         });
         mipmapFolder.file(
           `${filename}_round.png`,
@@ -504,7 +517,7 @@ export async function downloadAndroidIcons(
         const hiresSize = svgInnerSize * SUPERSAMPLE_FACTOR_PLAY;
         const img = await loadImageFromSvg(iconSvg);
         const fgCanvas = createHighQualityCanvas(hiresSize, hiresSize);
-        const fgCtx = fgCanvas.getContext("2d", { willReadFrequently: true })!;
+        const fgCtx = fgCanvas.getContext("2d")!;
         fgCtx.imageSmoothingEnabled = true;
         fgCtx.imageSmoothingQuality = "high";
         fgCtx.drawImage(img, 0, 0, hiresSize, hiresSize);
@@ -520,7 +533,7 @@ export async function downloadAndroidIcons(
         const hiresSize = svgInnerSize * SUPERSAMPLE_FACTOR_PLAY;
         const img = await loadImage(config.imageDataUrl);
         const fgCanvas = createHighQualityCanvas(hiresSize, hiresSize);
-        const fgCtx = fgCanvas.getContext("2d", { willReadFrequently: true })!;
+        const fgCtx = fgCanvas.getContext("2d")!;
         fgCtx.imageSmoothingEnabled = true;
         fgCtx.imageSmoothingQuality = "high";
         fgCtx.drawImage(img, 0, 0, hiresSize, hiresSize);
@@ -557,5 +570,6 @@ export async function downloadAndroidIcons(
     saveAs(content, "android-icons.zip");
   } catch (err) {
     console.error("Download failed:", err);
+    throw err;
   }
 }

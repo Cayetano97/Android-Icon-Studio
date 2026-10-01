@@ -60,11 +60,6 @@ export function cssColorToHex(color: string): string {
 }
 
 /**
- * Alias kept for backward-compat in downloadIcon.ts.
- */
-export const parseCssColorToHex = cssColorToHex;
-
-/**
  * Convert HSL components (h: 0-360, s/l: 0-100, a: 0-1) to { r, g, b, a }.
  */
 function hslToRgba(

@@ -1,7 +1,11 @@
-import { IconConfig } from "@/types/icon";
+import type { IconConfig } from "@/types/icon";
 import { renderToStaticMarkup } from "react-dom/server";
 import { loadIcon, ensureIconsLoaded } from "@/lib/lucideIcons";
-import { parseCssGradient } from "@/lib/canvasGradient";
+import {
+  getCssGradientLine,
+  interpolateStops,
+  parseCssGradient,
+} from "@/lib/canvasGradient";
 import { cssColorToHex, sanitizeCssColor } from "@/lib/color";
 
 export type RenderShape =
@@ -41,6 +45,7 @@ export interface RenderOptions {
   layer?: "all" | "background" | "foreground";
   finalEffects?: Effect[];
   monochrome?: boolean;
+  clipForeground?: boolean;
 }
 
 export interface Size {
@@ -52,14 +57,14 @@ export function createCanvas(w: number, h: number): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
-  const ctx = c.getContext("2d", { willReadFrequently: true })!;
+  const ctx = c.getContext("2d")!;
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   return c;
 }
 
-function cloneCanvas(src: HTMLCanvasElement, size?: Size): HTMLCanvasElement {
-  const c = createCanvas(size?.w ?? src.width, size?.h ?? src.height);
+function cloneCanvas(src: HTMLCanvasElement): HTMLCanvasElement {
+  const c = createCanvas(src.width, src.height);
   c.getContext("2d")!.drawImage(src, 0, 0);
   return c;
 }
@@ -143,10 +148,12 @@ function applyShadows(
     extCtx.restore();
     const targetCtx = target.getContext("2d")!;
     targetCtx.globalAlpha = e.opacity ?? 1;
+    // ext paints the shadow at (margin + translateX, margin + translateY),
+    // so sampling from (margin, margin) places it at (translateX, translateY).
     targetCtx.drawImage(
       ext,
-      (e.translateX ?? 0) - margin,
-      (e.translateY ?? 0) - margin,
+      margin,
+      margin,
       size.w,
       size.h,
       0,
@@ -261,7 +268,9 @@ function applyInnerShadows(
     extCtx.fillRect(0, 0, ext.width, ext.height);
     extCtx.restore();
 
-    const next = createCanvas(size.w, size.h);
+    // Composite the ring over a clone of `work`: source-atop keeps it inside
+    // the current alpha (compositing into an empty canvas would drop it).
+    const next = cloneCanvas(work);
     const ctx = next.getContext("2d")!;
     ctx.globalCompositeOperation = "source-atop";
     ctx.drawImage(ext, m, m, size.w, size.h, 0, 0, size.w, size.h);
@@ -293,8 +302,13 @@ export function applyEffects(
 
 const clipartCache = new Map<string, Promise<HTMLImageElement>>();
 
-function loadClipartImage(name: string): Promise<HTMLImageElement> {
-  let cached = clipartCache.get(name);
+function loadClipartImage(
+  name: string,
+  targetSize: number,
+): Promise<HTMLImageElement> {
+  const bucket = targetSize <= 256 ? 256 : targetSize <= 512 ? 512 : 1024;
+  const key = `${name}@${bucket}`;
+  let cached = clipartCache.get(key);
   if (!cached) {
     cached = (async () => {
       await ensureIconsLoaded();
@@ -303,7 +317,7 @@ function loadClipartImage(name: string): Promise<HTMLImageElement> {
         throw new Error(`Icon not found: ${name}`);
       }
       const svgMarkup = renderToStaticMarkup(
-        <Icon size={512} color="#000000" strokeWidth={1.5} />,
+        <Icon size={bucket} color="#000000" strokeWidth={1.5} />,
       );
       const blob = new Blob([svgMarkup], { type: "image/svg+xml" });
       const url = URL.createObjectURL(blob);
@@ -317,8 +331,17 @@ function loadClipartImage(name: string): Promise<HTMLImageElement> {
         img.src = url;
       });
       return img;
-    })();
-    clipartCache.set(name, cached);
+    })().catch((err) => {
+      // Drop failed loads so a later attempt can retry.
+      clipartCache.delete(key);
+      throw err;
+    });
+    clipartCache.set(key, cached);
+    // Bounded LRU: evict the oldest entry beyond the cap.
+    if (clipartCache.size > 24) {
+      const oldest = clipartCache.keys().next().value;
+      if (oldest) clipartCache.delete(oldest);
+    }
   }
   return cached;
 }
@@ -354,13 +377,13 @@ export async function renderForeground(
   monochrome = false,
 ): Promise<ForegroundSource | null> {
   const fgColor = monochrome
-    ? "#000000"
+    ? sanitizeCssColor(config.monochromeColor)
     : cssColorToHex(config.foregroundColor);
   const canvas = createCanvas(size.w, size.h);
   const ctx = canvas.getContext("2d")!;
 
   if (config.source === "clipart") {
-    const img = await loadClipartImage(config.clipartName);
+    const img = await loadClipartImage(config.clipartName, size.w);
     ctx.clearRect(0, 0, size.w, size.h);
     ctx.drawImage(img, 0, 0, size.w, size.h);
     ctx.globalCompositeOperation = "source-in";
@@ -372,21 +395,24 @@ export async function renderForeground(
 
   if (config.source === "text") {
     await loadFont(config.fontFamily, config.fontWeight);
-    const fontHeight = Math.floor(size.h * 0.75);
-    const text = ` ${config.text} `;
-    ctx.font = `${config.fontWeight} ${fontHeight}px "${config.fontFamily}", sans-serif`;
-    ctx.textBaseline = "alphabetic";
-    const measured = Math.ceil(ctx.measureText(text).width);
-    const tw = Math.max(measured, size.w);
-    if (tw !== canvas.width) {
-      canvas.width = tw;
+    const text = (config.text ?? "").trim();
+    if (!text) {
+      // Nothing to draw: leave the canvas transparent.
+      return { kind: "text", canvas };
     }
-    const tctx = canvas.getContext("2d")!;
-    tctx.clearRect(0, 0, canvas.width, canvas.height);
-    tctx.fillStyle = fgColor;
-    tctx.font = `${config.fontWeight} ${fontHeight}px "${config.fontFamily}", sans-serif`;
-    tctx.textBaseline = "alphabetic";
-    tctx.fillText(text, 0, fontHeight);
+    let fontHeight = Math.floor(size.h * 0.75);
+    const buildFont = (h: number) =>
+      `${config.fontWeight} ${h}px "${config.fontFamily}", sans-serif`;
+    ctx.font = buildFont(fontHeight);
+    const measured = ctx.measureText(text).width;
+    if (measured > size.w * 0.94 && measured > 0) {
+      fontHeight = Math.floor((fontHeight * (size.w * 0.94)) / measured);
+      ctx.font = buildFont(fontHeight);
+    }
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = fgColor;
+    ctx.fillText(text, size.w / 2, size.h / 2);
     return { kind: "text", canvas };
   }
 
@@ -412,27 +438,17 @@ export async function renderForeground(
 function getBackgroundFill(
   config: IconConfig,
   ctx: CanvasRenderingContext2D,
-  size: Size,
-  contentSize: Size,
+  spanW: number,
+  spanH: number,
 ): string | CanvasGradient {
   const bg = config.background;
   const parsed = parseCssGradient(bg);
   if (!parsed) {
     return cssColorToHex(bg);
   }
-  if (parsed.type === "linear") {
-    const angleRad = (parsed.angle - 90) * (Math.PI / 180);
-    const hw = contentSize.w / 2;
-    const hh = contentSize.h / 2;
-    const cx = size.w / 2;
-    const cy = size.h / 2;
-    const grad = ctx.createLinearGradient(
-      cx - Math.cos(angleRad) * hw,
-      cy - Math.sin(angleRad) * hh,
-      cx + Math.cos(angleRad) * hw,
-      cy + Math.sin(angleRad) * hh,
-    );
-    parsed.stops.forEach((stop) => {
+
+  const applyStops = (grad: CanvasGradient) => {
+    interpolateStops(parsed.stops).forEach((stop) => {
       if (!isNaN(stop.position)) {
         try {
           grad.addColorStop(stop.position / 100, sanitizeCssColor(stop.color));
@@ -441,25 +457,26 @@ function getBackgroundFill(
         }
       }
     });
+  };
+
+  if (parsed.type === "linear") {
+    // CSS gradient-line geometry (same as SVG/VectorDrawable exports).
+    const line = getCssGradientLine(parsed.angle, spanW, spanH);
+    const grad = ctx.createLinearGradient(line.x1, line.y1, line.x2, line.y2);
+    applyStops(grad);
     return grad;
   }
+
+  // CSS radial-gradient defaults to farthest-corner.
   const grad = ctx.createRadialGradient(
-    size.w / 2,
-    size.h / 2,
+    spanW / 2,
+    spanH / 2,
     0,
-    size.w / 2,
-    size.h / 2,
-    Math.max(contentSize.w, contentSize.h) / 2,
+    spanW / 2,
+    spanH / 2,
+    Math.hypot(spanW / 2, spanH / 2),
   );
-  parsed.stops.forEach((stop) => {
-    if (!isNaN(stop.position)) {
-      try {
-        grad.addColorStop(stop.position / 100, sanitizeCssColor(stop.color));
-      } catch {
-        // ignore invalid color stops instead of failing the whole render
-      }
-    }
-  });
+  applyStops(grad);
   return grad;
 }
 
@@ -500,13 +517,18 @@ export async function renderIcon(
     if (layer === "background") {
       // Covers the full asset (IconKitchen: b.scale(o.w, o.h))
       const path = getShapePath(shape, asset.w, asset.h);
-      ctx.fillStyle = getBackgroundFill(config, ctx, asset, contentSize);
+      ctx.fillStyle = getBackgroundFill(config, ctx, asset.w, asset.h);
       ctx.fill(path);
     } else {
       // Shape lives inside the content-size box (IconKitchen: translate+scale A)
       const path = getShapePath(shape, box.w, box.h);
       ctx.translate(box.x, box.y);
-      ctx.fillStyle = getBackgroundFill(config, ctx, asset, contentSize);
+      ctx.fillStyle = getBackgroundFill(
+        config,
+        ctx,
+        contentSize.w,
+        contentSize.h,
+      );
       ctx.fill(path);
     }
     ctx.restore();
@@ -548,6 +570,15 @@ export async function renderIcon(
     }
 
     ctx.restore();
+
+    // Mask the finished layer to the icon shape (legacy / round PNG exports).
+    if (fg && opts.clipForeground) {
+      ctx.save();
+      ctx.translate(box.x, box.y);
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.fill(getShapePath(shape, box.w, box.h));
+      ctx.restore();
+    }
   }
 
   const finalEffects = monochrome ? undefined : opts.finalEffects;

@@ -14,25 +14,27 @@ export default defineConfig((_config) => ({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "ic_launcher.svg"],
+      includeAssets: ["favicon.ico"],
       manifest: {
         name: "Android Icon Studio",
         short_name: "Icon Studio",
         description:
           "Create adaptive Android icons with real-time preview and export",
-        theme_color: "#2563EB",
+        theme_color: "#3DDC84",
         background_color: "#0f1014",
         display: "standalone",
         icons: [
           {
-            src: "ic_launcher.svg",
-            sizes: "any",
-            type: "image/svg+xml",
+            src: "android-chrome-192x192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any",
           },
           {
-            src: "favicon-32x32.png",
-            sizes: "32x32",
+            src: "android-chrome-512x512.png",
+            sizes: "512x512",
             type: "image/png",
+            purpose: "any",
           },
           {
             src: "apple-touch-icon.png",

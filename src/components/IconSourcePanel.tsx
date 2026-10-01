@@ -1,8 +1,17 @@
-import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import {
+  memo,
+  useState,
+  useRef,
+  useMemo,
+  useEffect,
+  useCallback,
+  useDeferredValue,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import type { LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { IconConfig, IconSource } from "@/types/icon";
+import type { IconConfig, IconSource } from "@/types/icon";
 import { SUPPORTED_FONTS } from "@/lib/fonts";
 import { getIconNames, loadIcon } from "@/lib/lucideIcons";
 import { useUiIcons } from "@/lib/uiIcons";
@@ -18,6 +27,63 @@ function formatIconName(name: string): string {
   return name.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
+/**
+ * Single virtualized-grid cell. Kept memoized with primitive props plus one
+ * stable callback so scrolling/re-selecting does not re-render every visible
+ * button or re-resolve its icon component.
+ */
+const IconGridItem = memo(function IconGridItem({
+  name,
+  selected,
+  onSelect,
+}: {
+  name: string;
+  selected: boolean;
+  onSelect: (name: string) => void;
+}) {
+  const Icon = loadIcon(name);
+  if (!Icon) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(name)}
+      aria-label={`Select icon ${formatIconName(name)}`}
+      title={formatIconName(name)}
+      className={`rounded-lg flex items-center justify-center transition-all hover:bg-accent/50 hover:scale-[1.06] active:scale-95 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        selected
+          ? "bg-primary shadow-md scale-105"
+          : "bg-background/40 border border-border/50"
+      }`}
+      style={{ height: `${ROW_HEIGHT - GAP_PX}px` }}
+    >
+      <GridIcon icon={Icon} selected={selected} />
+    </button>
+  );
+});
+
+/**
+ * Renders a resolved icon component passed as a prop. Keeping the lookup in
+ * `IconGridItem` and the JSX tag here avoids creating components during render
+ * (React Compiler `static-components`).
+ */
+function GridIcon({
+  icon: Icon,
+  selected,
+}: {
+  icon: LucideIcon;
+  selected: boolean;
+}) {
+  return (
+    <Icon
+      size={20}
+      strokeWidth={selected ? 2.5 : 2}
+      className={
+        selected ? "text-primary-foreground" : "text-muted-foreground/80"
+      }
+    />
+  );
+}
+
 interface Props {
   config: IconConfig;
   onChange: (updates: Partial<IconConfig>) => void;
@@ -26,8 +92,12 @@ interface Props {
 export default function IconSourcePanel({ config, onChange }: Props) {
   const I = useUiIcons();
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  // Depth counter so dragenter/dragleave fired by child elements do not
+  // toggle the dropzone highlight off while the drag is still inside it.
+  const dragDepthRef = useRef(0);
   // Collapsible icon grid: compact by default (3 rows) so the
   // sidebar fits without scrolling; expandable on demand.
   // Dynamic dvh height to adapt to the viewport (M3 adaptive spacing).
@@ -39,6 +109,14 @@ export default function IconSourcePanel({ config, onChange }: Props) {
     }
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [iconNames, setIconNames] = useState<string[]>([]);
   const [iconsLoading, setIconsLoading] = useState(true);
@@ -63,16 +141,27 @@ export default function IconSourcePanel({ config, onChange }: Props) {
     void loadIconList();
   }, [loadIconList, retryToken]);
 
-  const filtered = useMemo(
-    () =>
-      iconNames.filter((name) =>
-        name.toLowerCase().includes(search.toLowerCase()),
-      ),
-    [iconNames, search],
+  // Lowercased names computed once per icon list; the deferred query filters
+  // without blocking typing on large result sets.
+  const lowerNames = useMemo(
+    () => iconNames.map((name) => name.toLowerCase()),
+    [iconNames],
+  );
+
+  const filtered = useMemo(() => {
+    const query = deferredSearch.trim().toLowerCase();
+    if (!query) return iconNames;
+    return iconNames.filter((_, i) => lowerNames[i].includes(query));
+  }, [iconNames, lowerNames, deferredSearch]);
+
+  const handleSelect = useCallback(
+    (name: string) => onChange({ clipartName: name }),
+    [onChange],
   );
 
   const gridRef = useRef<HTMLDivElement>(null);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual's instance API is intentionally not memoization-safe; the instance is stable across renders.
   const virtualizer = useVirtualizer({
     count: Math.ceil(filtered.length / COLS),
     getScrollElement: () => gridRef.current,
@@ -123,7 +212,12 @@ export default function IconSourcePanel({ config, onChange }: Props) {
     }
     const reader = new FileReader();
     reader.onload = (ev) => {
+      if (!isMountedRef.current) return;
       onChange({ imageDataUrl: ev.target?.result as string, source: "image" });
+    };
+    reader.onerror = () => {
+      if (!isMountedRef.current) return;
+      setUploadError("Could not read the selected file.");
     };
     reader.readAsDataURL(file);
   }
@@ -134,8 +228,24 @@ export default function IconSourcePanel({ config, onChange }: Props) {
     validateAndLoadFile(file);
   };
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDragOver(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDragLeave = () => {
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDragOver(false);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    dragDepthRef.current = 0;
     setIsDragOver(false);
     const file = e.dataTransfer.files[0];
     if (file) validateAndLoadFile(file);
@@ -220,7 +330,10 @@ export default function IconSourcePanel({ config, onChange }: Props) {
           {iconsLoading ? (
             <IconGridSkeleton />
           ) : iconsError ? (
-            <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
+            <div
+              role="alert"
+              className="h-full flex flex-col items-center justify-center gap-3 text-center"
+            >
               <span className="text-2xl">⚠️</span>
               <p className="text-[11px] text-muted-foreground max-w-[200px]">
                 Could not load the icons.
@@ -259,35 +372,14 @@ export default function IconSourcePanel({ config, onChange }: Props) {
                     gap: `${GAP_PX}px`,
                   }}
                 >
-                  {rowItems.map((name) => {
-                    const Icon = loadIcon(name);
-                    if (!Icon) return null;
-                    return (
-                      <button
-                        type="button"
-                        key={name}
-                        onClick={() => onChange({ clipartName: name })}
-                        aria-label={`Select icon ${formatIconName(name)}`}
-                        title={formatIconName(name)}
-                        className={`rounded-lg flex items-center justify-center transition-all hover:bg-accent/50 hover:scale-[1.06] active:scale-95 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                          config.clipartName === name
-                            ? "bg-primary shadow-md scale-105"
-                            : "bg-background/40 border border-border/50"
-                        }`}
-                        style={{ height: `${ROW_HEIGHT - GAP_PX}px` }}
-                      >
-                        <Icon
-                          size={20}
-                          strokeWidth={config.clipartName === name ? 2.5 : 2}
-                          className={
-                            config.clipartName === name
-                              ? "text-primary-foreground"
-                              : "text-muted-foreground/80"
-                          }
-                        />
-                      </button>
-                    );
-                  })}
+                  {rowItems.map((name) => (
+                    <IconGridItem
+                      key={name}
+                      name={name}
+                      selected={config.clipartName === name}
+                      onSelect={handleSelect}
+                    />
+                  ))}
                 </div>
               );
             })}
@@ -423,15 +515,9 @@ export default function IconSourcePanel({ config, onChange }: Props) {
           onChange={handleImageUpload}
         />
         <div
-          onDragEnter={(e) => {
-            e.preventDefault();
-            setIsDragOver(true);
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragOver(true);
-          }}
-          onDragLeave={() => setIsDragOver(false)}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           className={`bg-background/40 border border-border/50 p-5 rounded-2xl flex flex-col items-center justify-center min-h-[176px] gap-5 transition-all hover:bg-accent/20 ${
             isDragOver ? "border-primary border-dashed bg-primary/5" : ""
@@ -494,10 +580,11 @@ function IconGridSkeleton() {
   const cols = 6;
   return (
     <div
+      role="status"
       className="grid w-full"
       style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: `${GAP_PX}px` }}
-      aria-hidden="true"
     >
+      <span className="sr-only">Loading icons</span>
       {Array.from({ length: rows * cols }).map((_, i) => (
         <div
           key={i}

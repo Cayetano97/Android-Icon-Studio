@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { IconConfig } from "@/types/icon";
+import type { IconConfig } from "@/types/icon";
 import IconSourcePanel from "@/components/IconSourcePanel";
 import IconCustomizer from "@/components/IconCustomizer";
 
@@ -22,6 +22,13 @@ export default function Sidebar({
   useEffect(() => {
     onCloseRef.current = onClose;
   });
+
+  useEffect(() => {
+    if (!open) return;
+    // Move focus into the drawer so keyboard/screen-reader users land
+    // inside the dialog. The wrap-around trap below keeps it contained.
+    sidebarRef.current?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -59,12 +66,17 @@ export default function Sidebar({
           className="fixed inset-0 bg-black/30 z-20 lg:hidden"
           onClick={onClose}
           aria-label="Close sidebar"
+          tabIndex={-1}
+          aria-hidden="true"
         />
       )}
 
       <aside
         ref={sidebarRef}
+        role={open ? "dialog" : undefined}
+        aria-modal={open ? true : undefined}
         aria-label="Icon settings"
+        tabIndex={-1}
         className={`
           fixed lg:static inset-y-0 left-0 z-20 top-[57px] lg:top-0
           border-r border-border/60 bg-background flex flex-col shrink-0 min-h-0

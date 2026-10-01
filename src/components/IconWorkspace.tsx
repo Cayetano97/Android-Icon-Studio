@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { IconConfig } from "@/types/icon";
+import type { IconConfig } from "@/types/icon";
 import IconPreview from "@/components/IconPreview";
 
 interface IconWorkspaceProps {

@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { safeStorageGet, safeStorageSet } from "@/lib/utils";
 
 const STORAGE_KEY = "theme";
 
@@ -9,7 +10,7 @@ function getSystemTheme(): boolean {
 
 function getStoredTheme(): boolean {
   if (typeof window === "undefined") return true;
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = safeStorageGet(STORAGE_KEY);
   if (stored) return stored === "dark";
   return getSystemTheme();
 }
@@ -44,17 +45,15 @@ function getSnapshot(): boolean {
 export function useTheme() {
   const dark = useSyncExternalStore(subscribe, getSnapshot, () => true);
 
-  const toggle = () => {
-    const next = !dark;
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem(STORAGE_KEY, next ? "dark" : "light");
+  const toggle = useCallback(() => {
+    safeStorageSet(STORAGE_KEY, dark ? "light" : "dark");
     emitChange();
-  };
+  }, [dark]);
 
-  // Sync on first render
-  if (typeof document !== "undefined") {
+  // Apply the theme class outside the render body to keep rendering pure.
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
-  }
+  }, [dark]);
 
   return { dark, toggle };
 }

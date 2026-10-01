@@ -34,54 +34,93 @@ export function parseCssGradient(css: string): ParsedGradient | null {
     }
   }
 
+  if (type === "radial") {
+    // CSS radial preludes ("circle at 50% 50%", "ellipse", "closest-side at …")
+    // are not color stops — drop the prelude before parsing stops.
+    const first = parts[0] ?? "";
+    if (
+      /^(circle|ellipse|closest-side|closest-corner|farthest-side|farthest-corner)\b/.test(
+        first,
+      ) ||
+      /\bat\b/.test(first)
+    ) {
+      stopsList = parts.slice(1);
+    }
+  }
+
   const stops = stopsList.map((stop) => {
-    const sp = stop.split(" ");
-    const posStr = sp.pop() || "";
-    const pos = parseFloat(posStr);
-    const color = sp.join(" ");
-    return { color, position: posStr.includes("%") ? pos : NaN };
+    // Optional position is the LAST token only when it ends with "%".
+    const m = stop.match(/^(.*?)\s+(-?[\d.]+)%\s*$/);
+    if (m) return { color: m[1].trim(), position: parseFloat(m[2]) };
+    return { color: stop.trim(), position: NaN };
   });
 
   return { type, angle, stops };
 }
 
-export function applyCanvasBackground(
-  ctx: CanvasRenderingContext2D,
-  background: string,
-  width: number,
-  height: number,
-) {
-  const parsed = parseCssGradient(background);
+/**
+ * CSS gradient line: length is |w·sinA| + |h·cosA|, direction points toward
+ * the end of the gradient (MDN). 0deg = bottom→top, 180deg = top→bottom.
+ */
+export function getCssGradientLine(
+  angleDeg: number,
+  w: number,
+  h: number,
+): { x1: number; y1: number; x2: number; y2: number } {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  const dx = Math.cos(rad);
+  const dy = Math.sin(rad);
+  const len = Math.abs(w * dx) + Math.abs(h * dy);
+  const cx = w / 2;
+  const cy = h / 2;
+  return {
+    x1: cx - (dx * len) / 2,
+    y1: cy - (dy * len) / 2,
+    x2: cx + (dx * len) / 2,
+    y2: cy + (dy * len) / 2,
+  };
+}
 
-  if (!parsed) {
-    ctx.fillStyle = background;
-    return;
+/**
+ * Fills in CSS gradient stop positions that were omitted: missing positions
+ * are interpolated between their neighbours, and open edges fall back to
+ * 0 / 100. Guarantees finite positions so downstream NaN guards never drop a
+ * stop (which used to leave gradients with no stops at all).
+ */
+export function interpolateStops(
+  stops: { color: string; position: number }[],
+): { color: string; position: number }[] {
+  if (stops.length === 0) return stops;
+  const result = stops.map((s) => ({ ...s }));
+  const known = result
+    .map((s, i) => ({ i, p: s.position }))
+    .filter(({ p }) => Number.isFinite(p));
+  if (known.length === 0) {
+    return result.map((s, i) => ({
+      ...s,
+      position: result.length === 1 ? 0 : (i / (result.length - 1)) * 100,
+    }));
   }
-
-  let grad: CanvasGradient;
-  if (parsed.type === "linear") {
-    const angleRad = (parsed.angle - 90) * (Math.PI / 180);
-    const hw = width / 2;
-    const hh = height / 2;
-    const distance = Math.sqrt(hw * hw + hh * hh);
-    const x1 = hw + Math.cos(angleRad) * distance;
-    const y1 = hh + Math.sin(angleRad) * distance;
-    const x2 = hw - Math.cos(angleRad) * distance;
-    const y2 = hh - Math.sin(angleRad) * distance;
-    grad = ctx.createLinearGradient(x2, y2, x1, y1);
-  } else {
-    const hw = width / 2;
-    const hh = height / 2;
-    grad = ctx.createRadialGradient(hw, hh, 0, hw, hh, Math.max(hw, hh));
+  // Open edges default to the gradient start / end.
+  if (!Number.isFinite(result[0].position)) result[0].position = 0;
+  if (!Number.isFinite(result[result.length - 1].position)) {
+    result[result.length - 1].position = 100;
   }
-
-  parsed.stops.forEach((stop) => {
-    if (!isNaN(stop.position)) {
-      try {
-        grad.addColorStop(stop.position / 100, stop.color);
-      } catch { /* ignore invalid stops */ }
+  // Interpolate runs of unknown positions between known neighbours.
+  let prevIdx = 0;
+  for (let i = 0; i <= result.length; i++) {
+    const isEdge = i === result.length;
+    const isKnown = !isEdge && Number.isFinite(result[i].position);
+    if (isEdge || isKnown) {
+      const start = result[prevIdx];
+      const end = isEdge ? { position: 100 } : result[i];
+      const steps = i - prevIdx;
+      for (let j = prevIdx + 1; j < i; j++) {
+        result[j].position =
+          start.position + ((end.position - start.position) * (j - prevIdx)) / steps;
+      }
+      prevIdx = i;
     }
-  });
-
-  ctx.fillStyle = grad;
+  }
+  return result;
 }

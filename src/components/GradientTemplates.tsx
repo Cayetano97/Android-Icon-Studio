@@ -156,11 +156,11 @@ function GradientTemplates({ current, onSelect }: Props) {
           showPatterns ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
-        <div className="overflow-hidden min-h-0">
+        <div className="overflow-hidden min-h-0" inert={!showPatterns}>
       <div
         className="grid grid-cols-4 gap-1 pt-1"
-        role="listbox"
-        aria-label="Gradient application templates"
+        role="group"
+        aria-label="Gradient templates"
       >
         {GRADIENT_PATTERNS.map((p) => {
           const css = p.build(c1, c2);
@@ -169,8 +169,8 @@ function GradientTemplates({ current, onSelect }: Props) {
             <button
               key={p.id}
               type="button"
-              role="option"
-              aria-selected={active}
+              aria-label={p.name}
+              aria-pressed={active}
               title={`${p.name} (${p.hint}) — ${p.description} Export: ${p.android}.`}
               onClick={() => onSelect(css)}
               className={`group flex flex-col items-center gap-1 rounded-lg p-1 transition-all hover:bg-accent/60 ${

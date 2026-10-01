@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, memo, useState, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { IconConfig, IconShape, DarkTheme } from "@/types/icon";
+import type { IconConfig, IconShape, DarkTheme } from "@/types/icon";
 import { useUiIcons } from "@/lib/uiIcons";
 import { DegreePicker } from "./DegreePicker";
 import GradientTemplates from "./GradientTemplates";
@@ -11,6 +11,7 @@ import {
   cssColorToHex,
   normalizeGradientColors,
 } from "@/lib/color";
+import { sanitizeResourceName } from "@/lib/utils";
 
 const LazyColorPickerPanel = lazy(() =>
   import("react-best-gradient-color-picker").then((m) => {
@@ -58,7 +59,7 @@ const LazyColorPickerPanel = lazy(() =>
                   type="button"
                   onClick={setRadial}
                   title="Radial Gradient"
-                  className={`p-1 rounded-md transition-all ${gradientType === ("radial-gradient" as string) ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className="p-1 rounded-md transition-all text-muted-foreground hover:text-foreground"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <circle cx="12" cy="12" r="8" />
@@ -81,6 +82,7 @@ const LazyColorPickerPanel = lazy(() =>
                   type="number"
                   value={Math.round(currentLeft)}
                   onChange={(e) => setPointLeft(Number(e.target.value))}
+                  aria-label="Gradient stop position"
                   className="ik-input w-10! px-1! text-center"
                 />
                 <button
@@ -184,6 +186,7 @@ function SliderRow({
   label,
   value,
   display,
+  valueText,
   min,
   max,
   step,
@@ -192,6 +195,7 @@ function SliderRow({
   label: string;
   value: number;
   display: string;
+  valueText?: string;
   min: number;
   max: number;
   step: number;
@@ -206,6 +210,8 @@ function SliderRow({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
+        aria-label={label}
+        aria-valuetext={valueText}
         className="ik-range flex-1"
       />
       <span className="text-[11px] font-bold text-primary font-mono tabular-nums min-w-[34px] text-right">
@@ -461,7 +467,7 @@ function TransformDetails({ config, onChange }: Props) {
           open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
-        <div className="overflow-hidden min-h-0">
+        <div className="overflow-hidden min-h-0" inert={!open}>
           <div className="space-y-1 px-2 pb-2">
             <SliderRow
               label="Scale"
@@ -476,6 +482,7 @@ function TransformDetails({ config, onChange }: Props) {
               label="Offset X"
               value={config.foregroundOffsetX}
               display={`${config.foregroundOffsetX}%`}
+              valueText={`${config.foregroundOffsetX}%`}
               min={-50}
               max={50}
               step={1}
@@ -485,6 +492,7 @@ function TransformDetails({ config, onChange }: Props) {
               label="Offset Y"
               value={config.foregroundOffsetY}
               display={`${config.foregroundOffsetY}%`}
+              valueText={`${config.foregroundOffsetY}%`}
               min={-50}
               max={50}
               step={1}
@@ -494,6 +502,7 @@ function TransformDetails({ config, onChange }: Props) {
               label="Rotation"
               value={config.foregroundRotation}
               display={`${config.foregroundRotation}°`}
+              valueText={`${config.foregroundRotation}°`}
               min={0}
               max={360}
               step={1}
@@ -523,6 +532,7 @@ function ForegroundSection({ config, onChange }: Props) {
         label="Padding"
         value={config.padding}
         display={`${config.padding}%`}
+        valueText={`${config.padding}%`}
         min={0}
         max={45}
         step={1}
@@ -573,11 +583,15 @@ function MoreContent({ config, onChange }: Props) {
           <PropertyRow label="Filename">
             <input
               value={config.filename}
-              onChange={(e) =>
+              onChange={(e) => {
+                // Mirror the export sanitization (lowercase, [a-z0-9_],
+                // must start with a letter). Empty is kept transiently so
+                // the field stays clearable; export falls back to ic_launcher.
+                const raw = e.target.value;
                 onChange({
-                  filename: e.target.value.replace(/[^a-z0-9_]/gi, "_"),
-                })
-              }
+                  filename: raw === "" ? "" : sanitizeResourceName(raw),
+                });
+              }}
               placeholder="ic_launcher"
               spellCheck={false}
               className="ik-input"

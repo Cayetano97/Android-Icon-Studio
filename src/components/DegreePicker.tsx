@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef } from "react";
 
 interface DegreePickerProps {
   degrees: number;
@@ -13,63 +13,48 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(isDragging);
+  const isDraggingRef = useRef(false);
 
-  useEffect(() => {
-    isDraggingRef.current = isDragging;
-  }, [isDragging]);
+  const calculateAngle = (clientX: number, clientY: number) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
 
-  const calculateAngle = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
+    const dx = clientX - centerX;
+    const dy = clientY - centerY;
 
-      const dx = clientX - centerX;
-      const dy = clientY - centerY;
+    let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    angle = (angle + 90) % 360;
+    if (angle < 0) angle += 360;
 
-      let angle = Math.atan2(dy, dx) * (180 / Math.PI);
-      angle = (angle + 90) % 360;
-      if (angle < 0) angle += 360;
+    onChange(Math.round(angle));
+  };
 
-      onChange(Math.round(angle));
-    },
-    [onChange],
-  );
-
-  const calculateAngleRef = useRef(calculateAngle);
-  useEffect(() => {
-    calculateAngleRef.current = calculateAngle;
-  }, [calculateAngle]);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Pointer Events with capture: move/up keep targeting this element even
+  // when the pointer leaves it, so no window listeners are needed and touch
+  // drags work the same as mouse drags.
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    isDraggingRef.current = true;
     setIsDragging(true);
     calculateAngle(e.clientX, e.clientY);
   };
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isDraggingRef.current) {
-        calculateAngleRef.current(e.clientX, e.clientY);
-      }
-    };
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    calculateAngle(e.clientX, e.clientY);
+  };
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging]);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
@@ -89,7 +74,10 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
     >
       <div
         ref={containerRef}
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
         onKeyDown={handleKeyDown}
         tabIndex={0}
         role="slider"
@@ -98,7 +86,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
         aria-valuemin={0}
         aria-valuemax={360}
         aria-valuetext={`${degrees} degrees`}
-        className={`relative rounded-full bg-background border border-border shadow-inner flex items-center justify-center cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`touch-none relative rounded-full bg-background border border-border shadow-inner flex items-center justify-center cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           isSmall ? "size-8" : "size-20 border-2"
         }`}
       >

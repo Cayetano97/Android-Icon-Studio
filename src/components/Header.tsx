@@ -10,6 +10,7 @@ interface HeaderProps {
   onDownload: () => void;
   onReset: () => void;
   copied: boolean;
+  downloading?: boolean;
 }
 
 function ToolbarButton({
@@ -56,6 +57,7 @@ export default memo(function Header({
   onDownload,
   onReset,
   copied,
+  downloading,
 }: HeaderProps) {
   const I = useUiIcons();
   return (
@@ -77,7 +79,7 @@ export default memo(function Header({
             {sidebarOpen ? <I.X size={20} /> : <I.Menu size={20} />}
           </button>
           <img
-            src="/ic_launcher.svg"
+            src="/android-chrome-192x192.png"
             alt="Android Icon Studio Logo"
             className="size-8 shrink-0 drop-shadow-sm"
           />
@@ -92,8 +94,9 @@ export default memo(function Header({
             onClick={onDownload}
             icon={<I.Download size={16} />}
             label="Download"
-            title="Download (Ctrl+D)"
+            title="Download (Ctrl/⌘+D)"
             primary
+            disabled={downloading}
           />
           <ToolbarButton
             onClick={onCopyLink}
@@ -104,7 +107,7 @@ export default memo(function Header({
                 <I.Link2 size={16} />
               )
             }
-            title={copied ? "Copied!" : "Copy link (Ctrl+S)"}
+            title={copied ? "Copied!" : "Copy link (Ctrl/⌘+S)"}
           />
           <ToolbarButton
             onClick={onToggleTheme}
@@ -117,6 +120,9 @@ export default memo(function Header({
             title="Start over"
           />
         </div>
+        <span role="status" className="sr-only">
+          {copied ? "Link copied to clipboard" : ""}
+        </span>
       </header>
     </>
   );

@@ -1,4 +1,4 @@
-import { IconConfig } from "@/types/icon";
+import type { IconConfig } from "@/types/icon";
 
 /**
  * Extract path data from an SVG markup string for Android Vector Drawable export.
@@ -24,6 +24,8 @@ export function extractPathsFromSvg(
     }
   }
 
+  // Uniform scale; the group transform handles translate + scale so stroke
+  // widths can stay at their source values.
   const scale = innerSize / Math.max(srcW, srcH);
   const results: string[] = [];
 
@@ -32,10 +34,20 @@ export function extractPathsFromSvg(
     svgEl.getAttribute("stroke-width") ?? "2",
   );
   const rootFill = svgEl.getAttribute("fill") ?? "none";
+  const rootLineCap = svgEl.getAttribute("stroke-linecap") ?? "";
+  const rootLineJoin = svgEl.getAttribute("stroke-linejoin") ?? "";
+  const rootFillRule = svgEl.getAttribute("fill-rule") ?? "";
 
   const processElement = (
     el: Element,
-    inherited: { stroke: string; strokeWidth: number; fill: string },
+    inherited: {
+      stroke: string;
+      strokeWidth: number;
+      fill: string;
+      lineCap: string;
+      lineJoin: string;
+      fillRule: string;
+    },
   ) => {
     const tag = el.tagName.toLowerCase();
     if (tag === "defs" || tag === "title" || tag === "desc") return;
@@ -45,47 +57,75 @@ export function extractPathsFromSvg(
       ? parseFloat(el.getAttribute("stroke-width")!)
       : inherited.strokeWidth;
     const elFill = el.getAttribute("fill") ?? inherited.fill;
+    const elLineCap = el.getAttribute("stroke-linecap") ?? inherited.lineCap;
+    const elLineJoin = el.getAttribute("stroke-linejoin") ?? inherited.lineJoin;
+    const elFillRule = el.getAttribute("fill-rule") ?? inherited.fillRule;
 
     const childInherited = {
       stroke: elStroke,
       strokeWidth: elStrokeW,
       fill: elFill,
+      lineCap: elLineCap,
+      lineJoin: elLineJoin,
+      fillRule: elFillRule,
     };
 
-    const strokeAttr =
-      elStroke !== "none" && elStroke !== "transparent"
-        ? `\n        android:strokeColor="${elStroke}"`
+    const hasStroke = elStroke !== "none" && elStroke !== "transparent";
+    const strokeAttr = hasStroke
+      ? `\n        android:strokeColor="${elStroke}"`
+      : "";
+    const strokeWAttr = hasStroke
+      ? `\n        android:strokeWidth="${elStrokeW}"`
+      : "";
+    const lineCapAttr =
+      hasStroke &&
+      (elLineCap === "round" || elLineCap === "butt" || elLineCap === "square")
+        ? `\n        android:strokeLineCap="${elLineCap}"`
         : "";
-    const strokeWAttr =
-      elStroke !== "none" && elStroke !== "transparent"
-        ? `\n        android:strokeWidth="${(elStrokeW * scale).toFixed(2)}"`
+    const lineJoinAttr =
+      hasStroke &&
+      (elLineJoin === "round" ||
+        elLineJoin === "bevel" ||
+        elLineJoin === "miter")
+        ? `\n        android:strokeLineJoin="${elLineJoin}"`
         : "";
+    const fillTypeAttr =
+      elFillRule === "evenodd" ? `\n        android:fillType="evenOdd"` : "";
     const fillAttr =
       elFill !== "none" && elFill !== "transparent"
         ? `\n        android:fillColor="${elFill}"`
         : `\n        android:fillColor="#00000000"`;
 
+    const pathAttrs = `${strokeAttr}${strokeWAttr}${lineCapAttr}${lineJoinAttr}${fillTypeAttr}${fillAttr}`;
+    const pushPath = (pathData: string) => {
+      results.push(
+        `    <path\n        android:pathData="${pathData}"${pathAttrs}/>`,
+      );
+    };
+
     if (tag === "path") {
       const d = el.getAttribute("d");
-      if (d) {
-        results.push(
-          `    <path\n        android:pathData="${d}"${strokeAttr}${strokeWAttr}${fillAttr}\n        android:translateX="${offset}"\n        android:translateY="${offset}"\n        android:scaleX="${(scale / srcW).toFixed(6)}"\n        android:scaleY="${(scale / srcH).toFixed(6)}"/>`,
-        );
-      }
+      if (d) pushPath(d);
     } else if (tag === "line") {
       const x1 = el.getAttribute("x1") ?? "0";
       const y1 = el.getAttribute("y1") ?? "0";
       const x2 = el.getAttribute("x2") ?? "0";
       const y2 = el.getAttribute("y2") ?? "0";
-      results.push(
-        `    <path\n        android:pathData="M${x1},${y1}L${x2},${y2}"${strokeAttr}${strokeWAttr}${fillAttr}\n        android:translateX="${offset}"\n        android:translateY="${offset}"\n        android:scaleX="${(scale / srcW).toFixed(6)}"\n        android:scaleY="${(scale / srcH).toFixed(6)}"/>`,
-      );
+      pushPath(`M${x1},${y1}L${x2},${y2}`);
     } else if (tag === "circle") {
       const cx = parseFloat(el.getAttribute("cx") ?? "0");
       const cy = parseFloat(el.getAttribute("cy") ?? "0");
       const r = parseFloat(el.getAttribute("r") ?? "0");
-      results.push(
-        `    <path\n        android:pathData="M${cx - r},${cy}A${r},${r},0,1,1,${cx + r},${cy}A${r},${r},0,1,1,${cx - r},${cy}Z"${strokeAttr}${strokeWAttr}${fillAttr}\n        android:translateX="${offset}"\n        android:translateY="${offset}"\n        android:scaleX="${(scale / srcW).toFixed(6)}"\n        android:scaleY="${(scale / srcH).toFixed(6)}"/>`,
+      pushPath(
+        `M${cx - r},${cy}A${r},${r},0,1,1,${cx + r},${cy}A${r},${r},0,1,1,${cx - r},${cy}Z`,
+      );
+    } else if (tag === "ellipse") {
+      const cx = parseFloat(el.getAttribute("cx") ?? "0");
+      const cy = parseFloat(el.getAttribute("cy") ?? "0");
+      const rx = parseFloat(el.getAttribute("rx") ?? "0");
+      const ry = parseFloat(el.getAttribute("ry") ?? "0");
+      pushPath(
+        `M${cx - rx},${cy}A${rx},${ry},0,1,1,${cx + rx},${cy}A${rx},${ry},0,1,1,${cx - rx},${cy}Z`,
       );
     } else if (tag === "polyline") {
       const points = el.getAttribute("points")?.trim().split(/\s+/);
@@ -94,9 +134,16 @@ export function extractPathsFromSvg(
           const [x, y] = p.split(",");
           return i === 0 ? `M${x},${y}` : `L${x},${y}`;
         });
-        results.push(
-          `    <path\n        android:pathData="${pathParts.join("")}"${strokeAttr}${strokeWAttr}${fillAttr}\n        android:translateX="${offset}"\n        android:translateY="${offset}"\n        android:scaleX="${(scale / srcW).toFixed(6)}"\n        android:scaleY="${(scale / srcH).toFixed(6)}"/>`,
-        );
+        pushPath(pathParts.join(""));
+      }
+    } else if (tag === "polygon") {
+      const points = el.getAttribute("points")?.trim().split(/\s+/);
+      if (points && points.length >= 2) {
+        const pathParts = points.map((p, i) => {
+          const [x, y] = p.split(",");
+          return i === 0 ? `M${x},${y}` : `L${x},${y}`;
+        });
+        pushPath(`${pathParts.join("")}Z`);
       }
     } else if (tag === "rect") {
       const x = el.getAttribute("x") ?? "0";
@@ -108,13 +155,11 @@ export function extractPathsFromSvg(
         const r = parseFloat(rx);
         const wf = parseFloat(w);
         const hf = parseFloat(h);
-        results.push(
-          `    <path\n        android:pathData="M${parseFloat(x) + r},${y}L${parseFloat(x) + wf - r},${y}Q${parseFloat(x) + wf},${y},${parseFloat(x) + wf},${parseFloat(y) + r}L${parseFloat(x) + wf},${parseFloat(y) + hf - r}Q${parseFloat(x) + wf},${parseFloat(y) + hf},${parseFloat(x) + wf - r},${parseFloat(y) + hf}L${parseFloat(x) + r},${parseFloat(y) + hf}Q${x},${parseFloat(y) + hf},${x},${parseFloat(y) + hf - r}L${x},${parseFloat(y) + r}Q${x},${y},${parseFloat(x) + r},${y}Z"${strokeAttr}${strokeWAttr}${fillAttr}\n        android:translateX="${offset}"\n        android:translateY="${offset}"\n        android:scaleX="${(scale / srcW).toFixed(6)}"\n        android:scaleY="${(scale / srcH).toFixed(6)}"/>`,
+        pushPath(
+          `M${parseFloat(x) + r},${y}L${parseFloat(x) + wf - r},${y}Q${parseFloat(x) + wf},${y},${parseFloat(x) + wf},${parseFloat(y) + r}L${parseFloat(x) + wf},${parseFloat(y) + hf - r}Q${parseFloat(x) + wf},${parseFloat(y) + hf},${parseFloat(x) + wf - r},${parseFloat(y) + hf}L${parseFloat(x) + r},${parseFloat(y) + hf}Q${x},${parseFloat(y) + hf},${x},${parseFloat(y) + hf - r}L${x},${parseFloat(y) + r}Q${x},${y},${parseFloat(x) + r},${y}Z`,
         );
       } else {
-        results.push(
-          `    <path\n        android:pathData="M${x},${y}h${w}v${h}h-${w}z"${strokeAttr}${strokeWAttr}${fillAttr}\n        android:translateX="${offset}"\n        android:translateY="${offset}"\n        android:scaleX="${(scale / srcW).toFixed(6)}"\n        android:scaleY="${(scale / srcH).toFixed(6)}"/>`,
-        );
+        pushPath(`M${x},${y}h${w}v${h}h-${w}z`);
       }
     } else if (tag === "g") {
       for (const child of Array.from(el.children)) {
@@ -127,13 +172,24 @@ export function extractPathsFromSvg(
     stroke: rootStroke,
     strokeWidth: rootStrokeW,
     fill: rootFill,
+    lineCap: rootLineCap,
+    lineJoin: rootLineJoin,
+    fillRule: rootFillRule,
   };
 
   for (const child of Array.from(svgEl.children)) {
     processElement(child, rootInherited);
   }
 
-  return results.join("\n");
+  if (results.length === 0) return "";
+
+  return `    <group
+        android:translateX="${offset}"
+        android:translateY="${offset}"
+        android:scaleX="${scale.toFixed(6)}"
+        android:scaleY="${scale.toFixed(6)}">
+${results.join("\n")}
+    </group>`;
 }
 
 /**

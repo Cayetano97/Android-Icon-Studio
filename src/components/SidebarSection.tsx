@@ -44,18 +44,16 @@ export default function SidebarSection({
   });
 
   function toggle() {
-    setOpen((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(
-          STORAGE_PREFIX + id,
-          next ? "open" : "closed",
-        );
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    const next = !open;
+    setOpen(next);
+    try {
+      window.localStorage.setItem(
+        STORAGE_PREFIX + id,
+        next ? "open" : "closed",
+      );
+    } catch {
+      /* ignore */
+    }
   }
 
   const Chevron = open ? I.ChevronDown : I.ChevronRight;
@@ -86,7 +84,7 @@ export default function SidebarSection({
           open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
-        <div className="overflow-hidden min-h-0">
+        <div className="overflow-hidden min-h-0" inert={!open}>
           <div className="pt-2.5">{children}</div>
         </div>
       </div>
