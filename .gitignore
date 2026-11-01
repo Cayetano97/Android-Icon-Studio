@@ -27,3 +27,4 @@ dev-dist
 # Local agent tooling / working notes — never commit
 .codegraph/
 odd/
+.atl
