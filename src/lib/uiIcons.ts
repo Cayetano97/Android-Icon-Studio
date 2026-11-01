@@ -2,22 +2,25 @@ import type { LucideIcon } from "lucide-react";
 // Per-icon modules from the package dist: importing the barrel here would make
 // the dynamic import in `@/lib/lucideIcons` ineffective (rolldown keeps a
 // statically imported module in the entry chunk), pulling the whole ~750 KB
-// icon set into the initial bundle. These 17 default imports stay tiny.
+// icon set into the initial bundle. These imports stay tiny.
 import ArrowRightLeft from "lucide-react/dist/esm/icons/arrow-right-left.mjs";
 import Check from "lucide-react/dist/esm/icons/check.mjs";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.mjs";
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.mjs";
 import ChevronUp from "lucide-react/dist/esm/icons/chevron-up.mjs";
 import Download from "lucide-react/dist/esm/icons/download.mjs";
+import ImageIcon from "lucide-react/dist/esm/icons/image.mjs";
 import Link2 from "lucide-react/dist/esm/icons/link-2.mjs";
 import Menu from "lucide-react/dist/esm/icons/menu.mjs";
-import Mic from "lucide-react/dist/esm/icons/mic.mjs";
 import Moon from "lucide-react/dist/esm/icons/moon.mjs";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.mjs";
 import RotateCcw from "lucide-react/dist/esm/icons/rotate-ccw.mjs";
 import Search from "lucide-react/dist/esm/icons/search.mjs";
+import Shapes from "lucide-react/dist/esm/icons/shapes.mjs";
+import Smartphone from "lucide-react/dist/esm/icons/smartphone.mjs";
 import Sun from "lucide-react/dist/esm/icons/sun.mjs";
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.mjs";
+import Type from "lucide-react/dist/esm/icons/type.mjs";
 import Upload from "lucide-react/dist/esm/icons/upload.mjs";
 import X from "lucide-react/dist/esm/icons/x.mjs";
 
@@ -28,15 +31,18 @@ export const UI_ICON_NAMES = [
   "ChevronRight",
   "ChevronUp",
   "Download",
+  "Image",
   "Link2",
   "Menu",
-  "Mic",
   "Moon",
   "RefreshCw",
   "RotateCcw",
   "Search",
+  "Shapes",
+  "Smartphone",
   "Sun",
   "Trash2",
+  "Type",
   "Upload",
   "X",
 ] as const;
@@ -55,15 +61,18 @@ const uiIcons: Record<UiIconName, LucideIcon> = {
   ChevronRight,
   ChevronUp,
   Download,
+  Image: ImageIcon,
   Link2,
   Menu,
-  Mic,
   Moon,
   RefreshCw,
   RotateCcw,
   Search,
+  Shapes,
+  Smartphone,
   Sun,
   Trash2,
+  Type,
   Upload,
   X,
 };

@@ -127,7 +127,7 @@ export const DegreePicker: React.FC<DegreePickerProps> = ({
 
       {!isSmall && (
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Angle
           </span>
           <div className="text-xs font-mono text-primary font-bold bg-popover px-2 py-0.5 rounded border border-border shadow-sm min-w-[45px] text-center">

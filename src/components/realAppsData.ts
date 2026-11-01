@@ -22,11 +22,11 @@ export interface RealApp {
   /** CSS background behind the logo (solid color or gradient). */
   bg?: string;
   /** Official Google product-icon URL. */
-  iconUrl: string;
+  iconUrl?: string;
   /** Size of the logo relative to the icon tile (%). */
   fit?: number;
-  /** Force the logo to solid white (monochrome glyphs on colored tiles). */
-  tintWhite?: boolean;
+  /** Draw a custom launcher glyph instead of a product icon. */
+  glyph?: "phone";
 }
 
 // ---------------------------------------------------------------------------
@@ -38,7 +38,7 @@ export const Chrome: RealApp = {
   label: "Chrome",
   bg: "#ffffff",
   iconUrl: icon("chrome"),
-  fit: 100,
+  fit: 84,
 };
 
 export const Gmail: RealApp = {
@@ -46,7 +46,7 @@ export const Gmail: RealApp = {
   label: "Gmail",
   bg: "#ffffff",
   iconUrl: icon("gmail"),
-  fit: 82,
+  fit: 76,
 };
 
 export const Maps: RealApp = {
@@ -54,7 +54,7 @@ export const Maps: RealApp = {
   label: "Maps",
   bg: "#ffffff",
   iconUrl: icon("maps"),
-  fit: 92,
+  fit: 80,
 };
 
 export const PlayStore: RealApp = {
@@ -62,30 +62,28 @@ export const PlayStore: RealApp = {
   label: "Play Store",
   bg: "#ffffff",
   iconUrl: icon("play_store"),
-  fit: 82,
+  fit: 76,
 };
 
 export const PhoneApp: RealApp = {
   id: "phone",
   label: "Phone",
-  bg: "linear-gradient(160deg,#3b8bf6 0%,#1a73e8 55%,#0b57d0 100%)",
-  iconUrl: icon("voice"),
-  fit: 52,
-  tintWhite: true,
+  bg: "linear-gradient(160deg,#4aa3ff 0%,#1a73e8 55%,#0b57d0 100%)",
+  glyph: "phone",
 };
 
 export const Messages: RealApp = {
   id: "messages",
   label: "Messages",
-  bg: "linear-gradient(160deg,#2f7cf6 0%,#1967d2 100%)",
+  bg: "#ffffff",
   iconUrl: icon("messages"),
-  fit: 88,
+  fit: 100,
 };
 
 export const Camera: RealApp = {
   id: "camera",
   label: "Camera",
-  bg: "linear-gradient(160deg,#5f6368 0%,#3c4043 60%,#202124 100%)",
+  bg: "#ffffff",
   iconUrl: icon("camera"),
   fit: 88,
 };
@@ -95,7 +93,7 @@ export const Photos: RealApp = {
   label: "Photos",
   bg: "#ffffff",
   iconUrl: icon("photos"),
-  fit: 80,
+  fit: 82,
 };
 
 export const YouTube: RealApp = {
@@ -103,7 +101,7 @@ export const YouTube: RealApp = {
   label: "YouTube",
   bg: "#ffffff",
   iconUrl: icon("youtube"),
-  fit: 92,
+  fit: 84,
 };
 
 export const Drive: RealApp = {
@@ -111,15 +109,47 @@ export const Drive: RealApp = {
   label: "Drive",
   bg: "#ffffff",
   iconUrl: icon("drive"),
-  fit: 84,
+  fit: 80,
 };
 
 export const Clock: RealApp = {
   id: "clock",
   label: "Clock",
-  bg: "linear-gradient(160deg,#3c4043 0%,#17191c 100%)",
+  bg: "#ffffff",
   iconUrl: icon("clock"),
-  fit: 84,
+  fit: 96,
+};
+
+export const Calendar: RealApp = {
+  id: "calendar",
+  label: "Calendar",
+  bg: "#ffffff",
+  iconUrl: icon("calendar"),
+  fit: 100,
+};
+
+export const Keep: RealApp = {
+  id: "keep",
+  label: "Keep",
+  bg: "#ffffff",
+  iconUrl: icon("keep"),
+  fit: 100,
+};
+
+export const Files: RealApp = {
+  id: "files",
+  label: "Files",
+  bg: "#ffffff",
+  iconUrl: icon("files"),
+  fit: 100,
+};
+
+export const Gemini: RealApp = {
+  id: "gemini",
+  label: "Gemini",
+  bg: "#ffffff",
+  iconUrl: icon("gemini"),
+  fit: 92,
 };
 
 // ---------------------------------------------------------------------------
@@ -132,5 +162,9 @@ export const HOME_APPS: RealApp[] = [PlayStore, Gmail, Maps];
 /** Full second row. */
 export const HOME_ROW2_APPS: RealApp[] = [Photos, YouTube, Drive, Clock];
 
+/** Third row keeps the home screen from looking like an empty demo. */
+export const HOME_ROW3_APPS: RealApp[] = [Calendar, Keep, Files, Gemini];
+
 /** Pixel dock: Phone, Messages, Chrome, Camera (floating, no plate). */
 export const DOCK_APPS: RealApp[] = [PhoneApp, Messages, Chrome, Camera];
+

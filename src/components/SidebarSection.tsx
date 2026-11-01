@@ -66,11 +66,11 @@ export default function SidebarSection({
           onClick={toggle}
           aria-expanded={open}
           aria-controls={contentId}
-          className="ik-section-header flex-1! mb-0! py-1.5 cursor-pointer select-none text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="ik-section-header mb-0! min-h-8 flex-1! cursor-pointer select-none rounded-md py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="flex items-center gap-1.5 min-w-0">
+          <span className="flex min-w-0 items-center gap-1.5">
             {title}
-            <Chevron size={14} className="shrink-0 opacity-70" aria-hidden />
+            <Chevron size={13} className="shrink-0 opacity-80" aria-hidden />
           </span>
         </button>
         {action}

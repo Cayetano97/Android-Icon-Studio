@@ -1,11 +1,17 @@
-import { useRef, useEffect, memo, useState, type ReactNode } from "react";
-import type { IconConfig, DarkTheme } from "@/types/icon";
-import { buildIconSvgMarkup } from "@/lib/lucideIcons";
-import { cssColorToHex } from "@/lib/color";
-import { renderIcon } from "@/lib/iconRenderer";
+import {
+  useRef,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  memo,
+  useState,
+  type ReactNode,
+} from "react";
+import type { PreviewImages } from "@/hooks/use-icon-images";
 import {
   HOME_APPS,
   HOME_ROW2_APPS,
+  HOME_ROW3_APPS,
   DOCK_APPS,
 } from "@/components/realAppsData";
 import {
@@ -15,139 +21,31 @@ import {
   LensGlyph,
   PixelWeatherGlyph,
 } from "@/components/RealApps";
+import frameUrl from "@/assets/pixel-9-pro-frame.svg?url";
 
-// Real Pixel 9 Pro: 152.8 x 72mm -> 0.4712 ratio, 20:9, 1280x2856 495PPI.
-// 440 x 934 = 0.471 -> exact hardware proportions.
-const DEVICE_WIDTH = 440;
-const DEVICE_HEIGHT = 934;
-const SCREEN = { w: 412, h: 906 };
-const ICON_PREVIEW_SIZE = 92;
-const LARGE_PREVIEW_SIZE = 256;
-const ICON_CARD_SIZE = 176;
-const ICON_CARD_PADDING = 32;
-const ICON_CARD_LABEL_H = 14;
-const ICON_CARD_GAP = 12;
-const ICON_CARD_H = ICON_CARD_SIZE + ICON_CARD_GAP + ICON_CARD_LABEL_H;
-const ICON_CARD_Y = Math.floor((DEVICE_HEIGHT - ICON_CARD_H) / 2);
-const STAGE_GAP = 48;
-const STAGE_W = ICON_CARD_SIZE + STAGE_GAP + DEVICE_WIDTH;
-const STAGE_H = DEVICE_HEIGHT;
+// Pixel 9 Pro chassis artwork is 353 x 745. The glass area starts 4.1% from
+// the left, 4.8% from the right, 2.05% from the top and 1.8% from the bottom
+// (measured from the original device frame).
+const DEVICE_WIDTH = 353;
+const DEVICE_HEIGHT = 745;
 
-const fz = (px: number) => `${(px / SCREEN.w) * 100}cqw`;
+// Logical launcher viewport. Android reports 412 dp for the Pixel 9 Pro, and
+// all launcher measurements below use those dp values. The screen is a CSS
+// container, so `u()` converts dp to container-relative units and the whole
+// UI stays sharp at any device size.
+const SCREEN_W = 412;
+const u = (dp: number) => `${(dp / SCREEN_W) * 100}cqw`;
 
-const HOME_ICON_SIZE = 60;
-const HOME_GAP_X = 34;
-const HOME_GAP_Y = 30;
-const GRID_TOP = 198;
-const GRID_LEFT = (SCREEN.w - (HOME_ICON_SIZE * 4 + HOME_GAP_X * 3)) / 2;
+const HOME_ICON = 58;
+const GRID_LEFT = 24;
+const GRID_PITCH = (SCREEN_W - GRID_LEFT * 2 - HOME_ICON) / 3;
+const GRID_TOP = 196;
+const ROW_PITCH = 126;
 const USER_SLOT = 2;
 const APP_SLOTS = [0, 1, 3];
 
-interface MockupImages {
-  /** Phone / home-screen icon: always the current design, so every edit shows. */
-  main: string;
-  /** Monochrome variant shown as a secondary "Themed" preview when enabled. */
-  themed: string | null;
-  large: string;
-}
-
-function resolveDarkTheme(darkTheme: DarkTheme, appThemeDark: boolean) {
-  if (darkTheme === "dark") return true;
-  if (darkTheme === "light") return false;
-  return appThemeDark;
-}
-
-function useMockupImages(
-  config: IconConfig,
-  darkTheme: DarkTheme,
-  appThemeDark: boolean,
-): { images: MockupImages | null; error: boolean } {
-  const [images, setImages] = useState<MockupImages | null>(null);
-  const [error, setError] = useState(false);
-  const configRef = useRef(config);
-
-  useEffect(() => {
-    configRef.current = config;
-  }, [config]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const isDark = resolveDarkTheme(darkTheme, appThemeDark);
-    const shape = config.shape;
-
-    async function renderAll() {
-      try {
-        const current = configRef.current;
-        const [main, themed, large] = await Promise.all([
-          renderIcon(current, {
-            assetSize: { w: ICON_PREVIEW_SIZE, h: ICON_PREVIEW_SIZE },
-            shape,
-          }),
-          current.monochromeEnabled
-            ? renderIcon(
-                {
-                  ...current,
-                  background: isDark
-                    ? "rgba(255,255,255,0.22)"
-                    : "rgba(0,0,0,0.10)",
-                  foregroundColor: current.monochromeColor,
-                },
-                {
-                  assetSize: { w: ICON_PREVIEW_SIZE, h: ICON_PREVIEW_SIZE },
-                  shape,
-                },
-              )
-            : Promise.resolve(null),
-          renderIcon(current, {
-            assetSize: { w: LARGE_PREVIEW_SIZE, h: LARGE_PREVIEW_SIZE },
-            shape,
-          }),
-        ]);
-
-        if (cancelled) return;
-        setError(false);
-        setImages({
-          main: main.toDataURL(),
-          themed: themed ? themed.toDataURL() : null,
-          large: large.toDataURL(),
-        });
-      } catch (error) {
-        console.error("Failed to render mockup preview:", error);
-        if (!cancelled) {
-          setError(true);
-        }
-      }
-    }
-
-    // Trailing debounce: rapid slider drags coalesce into one render pass.
-    const timer = window.setTimeout(renderAll, 80);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [
-    config.clipartName,
-    config.source,
-    config.text,
-    config.fontFamily,
-    config.fontWeight,
-    config.imageDataUrl,
-    config.background,
-    config.foregroundColor,
-    config.shape,
-    config.padding,
-    config.foregroundScale,
-    config.foregroundOffsetX,
-    config.foregroundOffsetY,
-    config.foregroundRotation,
-    config.monochromeEnabled,
-    config.monochromeColor,
-    darkTheme,
-    appThemeDark,
-  ]);
-
-  return { images, error };
-}
+const ICON_SHADOW = `drop-shadow(0 ${u(4)} ${u(9)} rgba(0,0,0,0.32)) drop-shadow(0 ${u(1)} ${u(2)} rgba(0,0,0,0.22))`;
+const LABEL_W = 104;
 
 function ScaledStage({
   width,
@@ -161,7 +59,7 @@ function ScaledStage({
   const ref = useRef<HTMLDivElement>(null);
   const [layout, setLayout] = useState({ scale: 1, x: 0, y: 0 });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
 
@@ -189,10 +87,9 @@ function ScaledStage({
         style={{
           left: layout.x,
           top: layout.y,
-          width,
-          height,
-          transform: `scale(${layout.scale})`,
-          transformOrigin: "0 0",
+          width: width * layout.scale,
+          height: height * layout.scale,
+          ["--device-w" as string]: `${width * layout.scale}px`,
         }}
       >
         {children}
@@ -202,175 +99,315 @@ function ScaledStage({
 }
 
 // ---------------------------------------------------------------------------
-// Pixel System UI — AOSP / Pixel Launcher fidelity
+// Pixel 9 Pro wallpaper — a hand-drawn homage to the "Swirling Petals" set
+// ---------------------------------------------------------------------------
+
+function PixelWallpaper({ isDark }: { isDark: boolean }) {
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const id = (name: string) => `${uid}-${name}`;
+
+  if (isDark) {
+    return (
+      <svg
+        className="pixel-wallpaper"
+        viewBox="0 0 412 915"
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id={id("bg")} x1="80" y1="0" x2="340" y2="915" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#1b1528" />
+            <stop offset="0.42" stopColor="#0d0b16" />
+            <stop offset="0.78" stopColor="#081013" />
+            <stop offset="1" stopColor="#060c0d" />
+          </linearGradient>
+          <linearGradient id={id("petalA")} x1="40" y1="60" x2="320" y2="280" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#a99aff" stopOpacity="0.82" />
+            <stop offset="0.48" stopColor="#5646b0" stopOpacity="0.5" />
+            <stop offset="1" stopColor="#1a123a" stopOpacity="0.06" />
+          </linearGradient>
+          <linearGradient id={id("petalB")} x1="40" y1="560" x2="300" y2="820" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#6fd6ca" stopOpacity="0.45" />
+            <stop offset="0.5" stopColor="#1d6b72" stopOpacity="0.42" />
+            <stop offset="1" stopColor="#082a2e" stopOpacity="0.05" />
+          </linearGradient>
+          <linearGradient id={id("petalC")} x1="460" y1="300" x2="250" y2="520" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#c58cf0" stopOpacity="0.62" />
+            <stop offset="0.52" stopColor="#5b2f83" stopOpacity="0.42" />
+            <stop offset="1" stopColor="#1c0d2a" stopOpacity="0.04" />
+          </linearGradient>
+          <radialGradient id={id("glowA")} cx="0.8" cy="0.08" r="0.45">
+            <stop stopColor="#b06cd8" stopOpacity="0.4" />
+            <stop offset="1" stopColor="#b06cd8" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id={id("glowB")} cx="0.08" cy="0.4" r="0.42">
+            <stop stopColor="#2b8b8f" stopOpacity="0.26" />
+            <stop offset="1" stopColor="#2b8b8f" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id={id("glowC")} cx="0.68" cy="0.86" r="0.4">
+            <stop stopColor="#6f2f63" stopOpacity="0.3" />
+            <stop offset="1" stopColor="#6f2f63" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id={id("vignette")} cx="0.5" cy="0.36" r="0.78">
+            <stop offset="0.52" stopColor="#000000" stopOpacity="0" />
+            <stop offset="1" stopColor="#000000" stopOpacity="0.52" />
+          </radialGradient>
+          <linearGradient id={id("petalD")} x1="250" y1="620" x2="430" y2="820" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#d77b9d" stopOpacity="0.55" />
+            <stop offset="0.55" stopColor="#7c3156" stopOpacity="0.36" />
+            <stop offset="1" stopColor="#2a0f21" stopOpacity="0.04" />
+          </linearGradient>
+          <filter id={id("blurXl")} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="52" />
+          </filter>
+          <filter id={id("blurL")} x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="9" />
+          </filter>
+          <filter id={id("blurS")} x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="7" />
+          </filter>
+          <filter id={id("grain")} x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.86" numOctaves="3" stitchTiles="stitch" />
+          </filter>
+        </defs>
+
+        <rect width="412" height="915" fill={`url(#${id("bg")})`} />
+        <rect width="412" height="915" fill={`url(#${id("glowA")})`} />
+        <rect width="412" height="915" fill={`url(#${id("glowB")})`} />
+        <rect width="412" height="915" fill={`url(#${id("glowC")})`} />
+
+        <g filter={`url(#${id("blurL")})`}>
+          <path
+            d="M-40 300C30 140 180 60 370 110C320 210 270 290 170 355C80 410 10 390-40 300Z"
+            fill={`url(#${id("petalA")})`}
+            stroke="#c9bcff"
+            strokeOpacity="0.26"
+            strokeWidth="2"
+            opacity="0.94"
+          />
+          <path
+            d="M200 300C285 200 405 200 480 320C430 435 355 505 265 545C200 500 178 400 200 300Z"
+            fill={`url(#${id("petalC")})`}
+            stroke="#d9b1ff"
+            strokeOpacity="0.24"
+            strokeWidth="2"
+          />
+          <path
+            d="M250 600C340 540 440 590 470 720C420 840 330 890 230 840C190 760 200 660 250 600Z"
+            fill={`url(#${id("petalD")})`}
+            stroke="#ffc2dc"
+            strokeOpacity="0.2"
+            strokeWidth="2"
+          />
+          <path
+            d="M-100 520C20 465 170 520 260 650C205 785 75 860-60 800C-120 720-140 610-100 520Z"
+            fill={`url(#${id("petalB")})`}
+            stroke="#a5fff2"
+            strokeOpacity="0.2"
+            strokeWidth="2"
+          />
+        </g>
+
+        {/* Petal veins catch the light like the stock wallpaper. */}
+        <g filter={`url(#${id("blurS")})`} opacity="0.7">
+          <path d="M20 245C130 110 270 120 350 185" fill="none" stroke="#f0d4ff" strokeWidth="1.4" opacity="0.5" />
+          <path d="M205 315C320 270 400 340 405 430" fill="none" stroke="#ffc4dd" strokeWidth="1.3" opacity="0.42" />
+          <path d="M255 640C350 600 405 670 415 760" fill="none" stroke="#ffd0e2" strokeWidth="1.2" opacity="0.3" />
+          <path d="M-40 580C100 520 240 580 285 700" fill="none" stroke="#a8fff2" strokeWidth="1.3" opacity="0.3" />
+        </g>
+
+        <g filter={`url(#${id("blurXl")})`} opacity="0.75">
+          <ellipse cx="345" cy="95" rx="150" ry="120" fill="#9b5ac4" opacity="0.28" />
+          <ellipse cx="60" cy="330" rx="150" ry="220" fill="#2b8b8f" opacity="0.22" />
+          <ellipse cx="370" cy="760" rx="150" ry="150" fill="#a34876" opacity="0.2" />
+        </g>
+
+        <rect width="412" height="915" fill={`url(#${id("vignette")})`} />
+        <rect
+          width="412"
+          height="915"
+          filter={`url(#${id("grain")})`}
+          opacity="0.06"
+          style={{ mixBlendMode: "overlay" }}
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      className="pixel-wallpaper"
+      viewBox="0 0 412 915"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={id("bg")} x1="60" y1="0" x2="360" y2="915" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#f4f2ec" />
+          <stop offset="0.48" stopColor="#e9e7f0" />
+          <stop offset="1" stopColor="#e2efe8" />
+        </linearGradient>
+        <linearGradient id={id("petalA")} x1="30" y1="60" x2="320" y2="300" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#f9c9d8" stopOpacity="0.85" />
+          <stop offset="0.6" stopColor="#eeb3c8" stopOpacity="0.4" />
+          <stop offset="1" stopColor="#f9c9d8" stopOpacity="0.04" />
+        </linearGradient>
+        <linearGradient id={id("petalB")} x1="20" y1="520" x2="310" y2="830" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#cfe7d3" stopOpacity="0.7" />
+          <stop offset="0.55" stopColor="#b3d6bb" stopOpacity="0.32" />
+          <stop offset="1" stopColor="#cfe7d3" stopOpacity="0.03" />
+        </linearGradient>
+        <linearGradient id={id("petalC")} x1="460" y1="300" x2="250" y2="540" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#d9c8f2" stopOpacity="0.72" />
+          <stop offset="0.55" stopColor="#c0a9de" stopOpacity="0.3" />
+          <stop offset="1" stopColor="#d9c8f2" stopOpacity="0.03" />
+        </linearGradient>
+        <linearGradient id={id("petalD")} x1="260" y1="620" x2="440" y2="840" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#f4d3c1" stopOpacity="0.62" />
+          <stop offset="0.55" stopColor="#e7b79f" stopOpacity="0.26" />
+          <stop offset="1" stopColor="#f4d3c1" stopOpacity="0.03" />
+        </linearGradient>
+        <radialGradient id={id("glowA")} cx="0.78" cy="0.12" r="0.6">
+          <stop stopColor="#ffd9e5" stopOpacity="0.8" />
+          <stop offset="1" stopColor="#ffd9e5" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={id("glowB")} cx="0.12" cy="0.38" r="0.55">
+          <stop stopColor="#bcd7f5" stopOpacity="0.62" />
+          <stop offset="1" stopColor="#bcd7f5" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={id("glowC")} cx="0.6" cy="0.84" r="0.52">
+          <stop stopColor="#f5d6bc" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#f5d6bc" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={id("vignette")} cx="0.5" cy="0.36" r="0.8">
+          <stop offset="0.55" stopColor="#4b4a63" stopOpacity="0" />
+          <stop offset="1" stopColor="#4b4a63" stopOpacity="0.13" />
+        </radialGradient>
+        <filter id={id("blurXl")} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="56" />
+        </filter>
+        <filter id={id("blurL")} x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="5" />
+        </filter>
+        <filter id={id("blurS")} x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="7" />
+        </filter>
+        <filter id={id("grain")} x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+        </filter>
+      </defs>
+
+      <rect width="412" height="915" fill={`url(#${id("bg")})`} />
+      <rect width="412" height="915" fill={`url(#${id("glowA")})`} />
+      <rect width="412" height="915" fill={`url(#${id("glowB")})`} />
+      <rect width="412" height="915" fill={`url(#${id("glowC")})`} />
+
+      <g filter={`url(#${id("blurL")})`}>
+        <path
+          d="M-40 300C30 140 180 60 370 110C320 210 270 290 170 355C80 410 10 390-40 300Z"
+          fill={`url(#${id("petalA")})`}
+          stroke="#ffffff"
+          strokeOpacity="0.55"
+          strokeWidth="2"
+        />
+        <path
+          d="M200 300C285 200 405 200 480 320C430 435 355 505 265 545C200 500 178 400 200 300Z"
+          fill={`url(#${id("petalC")})`}
+          stroke="#ffffff"
+          strokeOpacity="0.45"
+          strokeWidth="2"
+        />
+        <path
+          d="M250 600C340 540 440 590 470 720C420 840 330 890 230 840C190 760 200 660 250 600Z"
+          fill={`url(#${id("petalD")})`}
+          stroke="#ffffff"
+          strokeOpacity="0.42"
+          strokeWidth="2"
+        />
+        <path
+          d="M-100 520C20 465 170 520 260 650C205 785 75 860-60 800C-120 720-140 610-100 520Z"
+          fill={`url(#${id("petalB")})`}
+          stroke="#ffffff"
+          strokeOpacity="0.45"
+          strokeWidth="2"
+        />
+      </g>
+
+      <g filter={`url(#${id("blurS")})`} opacity="0.6">
+        <path d="M20 245C130 110 270 120 350 185" fill="none" stroke="#ffffff" strokeWidth="1.4" opacity="0.8" />
+        <path d="M205 315C320 270 400 340 405 430" fill="none" stroke="#ffffff" strokeWidth="1.3" opacity="0.62" />
+        <path d="M-40 580C100 520 240 580 285 700" fill="none" stroke="#ffffff" strokeWidth="1.4" opacity="0.5" />
+      </g>
+
+      <rect width="412" height="915" fill={`url(#${id("vignette")})`} />
+      <rect
+        width="412"
+        height="915"
+        filter={`url(#${id("grain")})`}
+        opacity="0.04"
+        style={{ mixBlendMode: "multiply" }}
+      />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pixel System UI
 // ---------------------------------------------------------------------------
 
 function PixelStatusBar({ isDark, time }: { isDark: boolean; time: string }) {
-  const color = isDark ? "#ffffff" : "#1a1c1e";
+  const color = isDark ? "rgba(255,255,255,0.96)" : "rgba(20,22,26,0.94)";
   return (
     <div
-      className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between select-none"
+      className="absolute z-20 flex select-none items-center justify-between"
       style={{
-        height: 44,
-        paddingLeft: 30,
-        paddingRight: 26,
-        paddingTop: 6,
+        top: u(18),
+        left: u(22),
+        right: u(22),
+        height: u(30),
         color,
+        fontFamily: "'Roboto', system-ui, sans-serif",
       }}
     >
       <span
         style={{
-          fontSize: fz(14),
+          fontSize: u(14),
           fontWeight: 500,
-          letterSpacing: 0.2,
+          letterSpacing: u(0.15),
           fontVariantNumeric: "tabular-nums",
-          fontFamily: "'Google Sans','Roboto',system-ui,sans-serif",
-          opacity: 0.92,
         }}
       >
         {time}
       </span>
-      <div className="flex items-center" style={{ gap: 7 }} aria-hidden="true">
-        {/* 5G */}
-        <span style={{ fontSize: fz(11), fontWeight: 700, letterSpacing: 0.3 }}>
+      <div className="flex items-center" style={{ gap: u(6.5) }} aria-hidden="true">
+        <span style={{ fontSize: u(9.5), fontWeight: 700, letterSpacing: u(0.1) }}>
           5G
         </span>
-        {/* Segmented mobile signal, Android 15 style */}
-        <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor">
-          <rect x="0" y="7.5" width="3" height="4.5" rx="0.9" />
-          <rect x="4.5" y="5" width="3" height="7" rx="0.9" />
-          <rect x="9" y="2.5" width="3" height="9.5" rx="0.9" />
-          <rect x="13.5" y="0" width="3" height="12" rx="0.9" opacity="0.95" />
+        <svg width={u(16)} height={u(12)} viewBox="0 0 17 12" fill="currentColor">
+          <rect x="0" y="8" width="2.9" height="4" rx="0.9" />
+          <rect x="4.7" y="5.6" width="2.9" height="6.4" rx="0.9" />
+          <rect x="9.4" y="3.2" width="2.9" height="8.8" rx="0.9" />
+          <rect x="14.1" y="0.8" width="2.9" height="11.2" rx="0.9" />
         </svg>
-        {/* WiFi fan Material */}
-        <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
-          <path
-            d="M8 9.6a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zM8 6.2c1.8 0 3.4.7 4.6 1.9l-1.5 1.5A4.4 4.4 0 0 0 8 8.4c-1.2 0-2.3.5-3.1 1.2L3.4 8.1A6.4 6.4 0 0 1 8 6.2zM8 2.5c2.8 0 5.3 1.1 7.1 3L13.6 7A8 8 0 0 0 8 4.7c-1.9 0-3.7.7-5 1.9L1.4 5A10 10 0 0 1 8 2.5z"
-            fill="currentColor"
-          />
+        <svg width={u(15)} height={u(11.5)} viewBox="0 0 16 12" fill="currentColor">
+          <path d="M8 11.2a1.6 1.6 0 1 1 0-3.2 1.6 1.6 0 0 1 0 3.2Zm-3.1-2.4a4.6 4.6 0 0 1 6.2 0l-1.1 1.1a3.1 3.1 0 0 0-4 0L4.9 8.8Zm-2.2-2.2a7.8 7.8 0 0 1 10.6 0l-1.1 1.1a6.3 6.3 0 0 0-8.4 0L2.7 6.6Zm-2.2-2.2a11 11 0 0 1 15 0l-1.1 1.1a9.5 9.5 0 0 0-12.8 0L.5 4.4Z" />
         </svg>
-        {/* Android 15 battery: % inside, rounded tip */}
-        <span className="flex items-center" style={{ gap: 4 }}>
-          <span style={{ fontSize: fz(11), fontWeight: 600, opacity: 0.85 }}>
+        <svg width={u(24)} height={u(13)} viewBox="0 0 24 13" className="block">
+          <rect x="0" y="0.75" width="21.2" height="11.5" rx="3.2" fill="currentColor" />
+          <rect x="21.7" y="4.25" width="1.9" height="4.5" rx="0.95" fill="currentColor" opacity="0.55" />
+          <text
+            x="10.6"
+            y="9.15"
+            textAnchor="middle"
+            fontSize="7.4"
+            fontWeight="700"
+            fontFamily="'Roboto', system-ui, sans-serif"
+            fill={isDark ? "#0b0d12" : "#f2f1ec"}
+          >
             78
-          </span>
-          <svg width="25" height="13" viewBox="0 0 25 13" fill="none">
-            <rect
-              x="0.7"
-              y="0.7"
-              width="20.6"
-              height="11.6"
-              rx="3.6"
-              stroke="currentColor"
-              strokeOpacity="0.5"
-              strokeWidth="1.1"
-            />
-            <rect x="2.4" y="2.4" width="14" height="8.2" rx="2" fill="currentColor" />
-            <path
-              d="M23.4 4.5v4a2 2 0 0 0 0-4z"
-              fill="currentColor"
-              fillOpacity="0.5"
-            />
-          </svg>
-        </span>
+          </text>
+        </svg>
       </div>
-    </div>
-  );
-}
-
-function PixelWallpaper({ isDark }: { isDark: boolean }) {
-  // Inspired by the official Pixel collection ("Blooming" / Material You):
-  // pastel abstract petals in light mode, plum/teal glows in dark mode.
-  return (
-    <div className="absolute inset-0 overflow-hidden" style={{ background: isDark ? "#0b0e14" : "#dfe7ef" }}>
-      {isDark ? (
-        <>
-          <div
-            className="absolute"
-            style={{
-              left: "-22%", top: "-10%", width: "95%", height: "52%",
-              background: "radial-gradient(closest-side, rgba(126,87,168,0.85), transparent 72%)",
-              filter: "blur(28px)",
-            }}
-          />
-          <div
-            className="absolute"
-            style={{
-              right: "-28%", top: "6%", width: "90%", height: "48%",
-              background: "radial-gradient(closest-side, rgba(64,112,132,0.7), transparent 70%)",
-              filter: "blur(30px)",
-            }}
-          />
-          <div
-            className="absolute"
-            style={{
-              left: "4%", top: "30%", width: "92%", height: "46%",
-              background: "radial-gradient(closest-side at 30% 40%, rgba(199,120,150,0.5), transparent 65%), radial-gradient(closest-side at 70% 60%, rgba(52,68,140,0.65), transparent 68%)",
-              filter: "blur(34px)",
-            }}
-          />
-          <div
-            className="absolute"
-            style={{
-              left: "-20%", bottom: "-18%", width: "140%", height: "52%",
-              background: "radial-gradient(closest-side, rgba(18,58,60,0.8), transparent 72%)",
-              filter: "blur(30px)",
-            }}
-          />
-          {/* dark petals */}
-          <svg className="absolute inset-0 h-full w-full opacity-70" viewBox="0 0 412 906" preserveAspectRatio="xMidYMid slice">
-            <g opacity="0.55">
-              <ellipse cx="320" cy="180" rx="150" ry="90" fill="#2a1e3e" transform="rotate(-18 320 180)" />
-              <ellipse cx="90" cy="560" rx="170" ry="110" fill="#122a33" transform="rotate(14 90 560)" />
-              <ellipse cx="300" cy="700" rx="160" ry="100" fill="#33222f" transform="rotate(-10 300 700)" />
-            </g>
-          </svg>
-        </>
-      ) : (
-        <>
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(168deg,#eef3f8 0%,#dfe9f2 34%,#e8e4f0 62%,#d9e8dc 100%)",
-            }}
-          />
-          <svg className="absolute inset-0 h-full w-full" viewBox="0 0 412 906" preserveAspectRatio="xMidYMid slice">
-            <defs>
-              <filter id="px-blur" x="-40%" y="-40%" width="180%" height="180%">
-                <feGaussianBlur stdDeviation="38" />
-              </filter>
-            </defs>
-            <g filter="url(#px-blur)" opacity="0.95">
-              <ellipse cx="330" cy="200" rx="150" ry="110" fill="#f7c9d9" />
-              <ellipse cx="80" cy="330" rx="130" ry="150" fill="#c3d9f2" />
-              <ellipse cx="300" cy="520" rx="170" ry="120" fill="#e6d6ef" />
-              <ellipse cx="90" cy="680" rx="150" ry="130" fill="#c8e4cb" />
-              <ellipse cx="330" cy="800" rx="140" ry="100" fill="#f2d9c2" />
-              <ellipse cx="180" cy="120" rx="110" ry="70" fill="#ffffff" opacity="0.8" />
-            </g>
-            {/* thin veins like on Pixel wallpapers */}
-            <g fill="none" stroke="#ffffff" strokeOpacity="0.5" strokeWidth="1.4">
-              <path d="M-20 420 C 90 380, 180 460, 432 380" />
-              <path d="M-20 640 C 120 600, 240 680, 432 600" opacity="0.7" />
-            </g>
-          </svg>
-        </>
-      )}
-      {/* subtle grain + vignette */}
-      <svg className="absolute inset-0 h-full w-full opacity-[0.05] mix-blend-overlay" aria-hidden="true">
-        <filter id="px-grain">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#px-grain)" />
-      </svg>
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(120% 90% at 50% 0%, transparent 60%, rgba(0,0,0,0.10) 100%)",
-        }}
-      />
     </div>
   );
 }
@@ -378,27 +415,37 @@ function PixelWallpaper({ isDark }: { isDark: boolean }) {
 function AtAGlance({ isDark, dateStr }: { isDark: boolean; dateStr: string }) {
   return (
     <div
-      className="absolute left-0 right-0 z-10 select-none"
-      style={{ top: 62, paddingLeft: 28, paddingRight: 28 }}
+      className="absolute select-none"
+      style={{
+        top: u(64),
+        left: u(24),
+        right: u(24),
+        fontFamily: "'Roboto', system-ui, sans-serif",
+      }}
     >
       <div
         style={{
-          fontSize: fz(15),
+          fontSize: u(15),
           fontWeight: 500,
-          color: isDark ? "#fff" : "#1a1c1e",
-          fontFamily: "'Google Sans','Roboto',system-ui,sans-serif",
-          letterSpacing: 0.1,
-          textShadow: isDark ? "0 1px 8px rgba(0,0,0,0.4)" : "0 1px 6px rgba(255,255,255,0.6)",
+          letterSpacing: u(0.05),
+          color: isDark ? "#ffffff" : "#1a1c1e",
+          textShadow: isDark
+            ? "0 1px 8px rgba(0,0,0,0.35)"
+            : "0 1px 6px rgba(255,255,255,0.55)",
         }}
       >
         {dateStr}
       </div>
       <div
         className="flex items-center"
-        style={{ marginTop: 6, gap: 8, color: isDark ? "rgba(255,255,255,0.92)" : "rgba(26,28,30,0.85)" }}
+        style={{
+          marginTop: u(5),
+          gap: u(7),
+          color: isDark ? "rgba(255,255,255,0.94)" : "rgba(26,28,30,0.86)",
+        }}
       >
-        <PixelWeatherGlyph size={24} />
-        <span style={{ fontSize: fz(13), fontWeight: 400 }}>
+        <PixelWeatherGlyph size={u(23)} />
+        <span style={{ fontSize: u(13), fontWeight: 400 }}>
           21°&nbsp;&nbsp;Mostly sunny
         </span>
       </div>
@@ -407,58 +454,68 @@ function AtAGlance({ isDark, dateStr }: { isDark: boolean; dateStr: string }) {
 }
 
 function PixelSearchBar({ isDark }: { isDark: boolean }) {
-  // Official pill: taller since Google app v17.32 (Jun 2026), large Lens/Mic icons.
   return (
     <div
-      className="absolute left-0 right-0 z-10 flex items-center"
+      className="absolute z-10 flex select-none items-center"
       style={{
-        left: 20,
-        right: 20,
-        bottom: 108,
-        height: 56,
-        borderRadius: 28,
-        paddingLeft: 18,
-        paddingRight: 14,
-        background: isDark ? "rgba(30,32,38,0.92)" : "rgba(255,255,255,0.96)",
+        left: u(18),
+        right: u(18),
+        bottom: u(104),
+        height: u(54),
+        borderRadius: u(27),
+        paddingLeft: u(17),
+        paddingRight: u(14),
+        background: isDark ? "rgba(31,33,38,0.9)" : "rgba(255,255,255,0.94)",
         boxShadow: isDark
-          ? "0 8px 24px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.08)"
-          : "0 8px 24px rgba(30,45,60,0.18), inset 0 0 0 1px rgba(255,255,255,0.9)",
-        backdropFilter: "blur(12px)",
+          ? "0 8px 24px rgba(0,0,0,0.32), inset 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.1)"
+          : "0 8px 24px rgba(30,45,60,0.16), inset 0 0 0 1px rgba(255,255,255,0.92), inset 0 1px 0 rgba(255,255,255,0.9)",
+        backdropFilter: "blur(16px)",
+        fontFamily: "'Roboto', system-ui, sans-serif",
       }}
     >
-      <GoogleGLogo size={22} />
+      <GoogleGLogo size={u(20)} />
       <span
         style={{
-          marginLeft: 14,
-          fontSize: 15,
-          color: isDark ? "rgba(255,255,255,0.72)" : "#5f6368",
+          marginLeft: u(13),
+          fontSize: u(14.5),
+          color: isDark ? "rgba(255,255,255,0.78)" : "#5f6368",
           fontWeight: 400,
         }}
       >
         Search
       </span>
-      <span className="ml-auto flex items-center" style={{ gap: 14 }}>
-        <MicGlyph size={20} />
-        <LensGlyph size={22} />
+      <span className="ml-auto flex items-center" style={{ gap: u(15) }}>
+        <MicGlyph size={u(20)} color={isDark ? "#e8eaed" : "#5f6368"} />
+        <LensGlyph size={u(21)} ringColor={isDark ? "#e8eaed" : "#5f6368"} />
       </span>
     </div>
   );
 }
 
-function HomeLabel({ x, top, label, isDark }: { x: number; top: number; label: string; isDark: boolean }) {
+function HomeLabel({
+  top,
+  label,
+  isDark,
+}: {
+  top: number | string;
+  label: string;
+  isDark: boolean;
+}) {
   return (
     <span
       className="absolute z-10 overflow-hidden text-center text-ellipsis whitespace-nowrap"
       style={{
-        left: x - 12,
+        left: u((HOME_ICON - LABEL_W) / 2),
         top,
-        width: HOME_ICON_SIZE + 24,
-        color: isDark ? "#fff" : "#fff",
-        fontSize: fz(11),
+        width: u(LABEL_W),
+        color: isDark ? "#ffffff" : "#1a1c1e",
+        fontSize: u(11.5),
         fontWeight: 500,
-        lineHeight: 1.25,
-        fontFamily: "'Roboto',system-ui,sans-serif",
-        textShadow: "0 1px 4px rgba(0,0,0,0.55), 0 0 12px rgba(0,0,0,0.3)",
+        lineHeight: 1.2,
+        fontFamily: "'Roboto', system-ui, sans-serif",
+        textShadow: isDark
+          ? "0 1px 4px rgba(0,0,0,0.55), 0 0 10px rgba(0,0,0,0.32)"
+          : "0 1px 2px rgba(255,255,255,0.8), 0 0 6px rgba(255,255,255,0.55)",
       }}
     >
       {label}
@@ -467,10 +524,10 @@ function HomeLabel({ x, top, label, isDark }: { x: number; top: number; label: s
 }
 
 function DeviceMockup({
-  images,
+  phone,
   isDark,
 }: {
-  images: MockupImages;
+  phone: string;
   isDark: boolean;
 }) {
   const [now, setNow] = useState(() => new Date());
@@ -490,8 +547,6 @@ function DeviceMockup({
     day: "numeric",
   });
 
-  const iconShadow = "0 6px 14px rgba(0,0,0,0.32), 0 1px 3px rgba(0,0,0,0.4)";
-
   const renderSlot = (
     key: string,
     slot: number,
@@ -499,50 +554,35 @@ function DeviceMockup({
     node: ReactNode,
     label: string,
   ) => {
-    const x = GRID_LEFT + slot * (HOME_ICON_SIZE + HOME_GAP_X);
+    const x = GRID_LEFT + slot * GRID_PITCH;
     return (
-      <div key={key}>
+      <div key={key} className="absolute" style={{ left: u(x), top: u(rowTop) }}>
         <div
-          className="absolute z-10 select-none"
+          className="absolute select-none"
           style={{
-            left: x,
-            top: rowTop,
-            width: HOME_ICON_SIZE,
-            height: HOME_ICON_SIZE,
-            filter: `drop-shadow(${iconShadow})`,
+            left: 0,
+            top: 0,
+            width: u(HOME_ICON),
+            height: u(HOME_ICON),
+            filter: ICON_SHADOW,
           }}
         >
           {node}
         </div>
-        <HomeLabel x={x} top={rowTop + HOME_ICON_SIZE + 5} label={label} isDark={isDark} />
+        <HomeLabel top={u(HOME_ICON + 4)} label={label} isDark={isDark} />
       </div>
     );
   };
 
-  const userX = GRID_LEFT + USER_SLOT * (HOME_ICON_SIZE + HOME_GAP_X);
+  const userX = GRID_LEFT + USER_SLOT * GRID_PITCH;
 
   return (
-    <div className="ik-device" style={{ width: DEVICE_WIDTH, height: DEVICE_HEIGHT }}>
-      {/* polished-frame antenna lines */}
-      <span className="ik-antenna ik-antenna-top" />
-      <span className="ik-antenna ik-antenna-bottom" />
-      {/* Right-edge buttons like the real Pixel: volume on top, power below */}
-      <span className="ik-device-button ik-device-button-volume" />
-      <span className="ik-device-button ik-device-button-power" />
-
-      <div className="ik-device-screen" style={{ containerType: "inline-size" }}>
+    <div className="pixel-device h-full w-full">
+      <div className="pixel-device-screen">
         <PixelWallpaper isDark={isDark} />
-
-        {/* centered front camera with realistic lens */}
-        <div className="ik-punchhole" aria-hidden="true">
-          <span className="ik-punchhole-lens" />
-          <span className="ik-punchhole-glare" />
-        </div>
-
         <PixelStatusBar isDark={isDark} time={time} />
         <AtAGlance isDark={isDark} dateStr={dateStr} />
 
-        {/* 4-column grid */}
         {HOME_APPS.map((app, index) =>
           renderSlot(
             app.id,
@@ -552,33 +592,46 @@ function DeviceMockup({
             app.label,
           ),
         )}
-        {/* User icon in the center slot */}
-        <div>
+
+        {/* The user's icon takes the center slot of the first row. */}
+        <div className="absolute" style={{ left: u(userX), top: u(GRID_TOP) }}>
           <div
-            className="absolute z-10 select-none"
+            className="absolute select-none"
             style={{
-              left: userX,
-              top: GRID_TOP,
-              width: HOME_ICON_SIZE,
-              height: HOME_ICON_SIZE,
-              filter: `drop-shadow(${iconShadow})`,
+              left: 0,
+              top: 0,
+              width: u(HOME_ICON),
+              height: u(HOME_ICON),
+              filter: ICON_SHADOW,
             }}
           >
             <img
-              src={images.main}
-              alt="Your app"
+              src={phone}
+              alt=""
+              width={192}
+              height={192}
               draggable={false}
               className="h-full w-full object-contain"
             />
           </div>
-          <HomeLabel x={userX} top={GRID_TOP + HOME_ICON_SIZE + 5} label="Your app" isDark={isDark} />
+          <HomeLabel top={u(HOME_ICON + 4)} label="Your app" isDark={isDark} />
         </div>
 
         {HOME_ROW2_APPS.map((app, index) =>
           renderSlot(
             app.id,
             index,
-            GRID_TOP + HOME_ICON_SIZE + 22 + HOME_GAP_Y,
+            GRID_TOP + ROW_PITCH,
+            <AppIcon app={app} className="h-full w-full" />,
+            app.label,
+          ),
+        )}
+
+        {HOME_ROW3_APPS.map((app, index) =>
+          renderSlot(
+            app.id,
+            index,
+            GRID_TOP + ROW_PITCH * 2,
             <AppIcon app={app} className="h-full w-full" />,
             app.label,
           ),
@@ -589,11 +642,11 @@ function DeviceMockup({
         {/* Pixel dock: floating icons without a plate */}
         <div
           className="absolute left-0 right-0 z-10 flex items-center justify-center"
-          style={{ bottom: 34, gap: 20 }}
+          style={{ bottom: u(28), gap: u(26) }}
         >
           {DOCK_APPS.map((app) => (
-            <div key={app.id} style={{ filter: `drop-shadow(${iconShadow})` }}>
-              <AppIcon app={app} style={{ width: 56, height: 56 }} />
+            <div key={app.id} style={{ filter: ICON_SHADOW }}>
+              <AppIcon app={app} style={{ width: u(HOME_ICON), height: u(HOME_ICON) }} />
             </div>
           ))}
         </div>
@@ -602,150 +655,43 @@ function DeviceMockup({
         <div
           className="absolute left-1/2 z-20 -translate-x-1/2 rounded-full"
           style={{
-            bottom: 10,
-            width: 120,
-            height: 4,
-            background: isDark ? "rgba(255,255,255,0.9)" : "rgba(20,22,25,0.75)",
+            bottom: u(8),
+            width: u(108),
+            height: u(4),
+            background: isDark ? "rgba(255,255,255,0.92)" : "rgba(18,20,24,0.72)",
           }}
         />
+
+        <div className="pixel-device-glass" aria-hidden="true" />
       </div>
+
+      <img
+        src={frameUrl}
+        alt=""
+        draggable={false}
+        className="pixel-device-chassis"
+      />
     </div>
   );
 }
 
-function IconCard({
-  src,
-  themedSrc,
+/**
+ * Pixel 9 Pro launcher mockup. The whole mockup is decorative: the board's
+ * <figcaption> carries the accessible description, so the internals are hidden
+ * from assistive tech instead of reading every fake app label.
+ */
+export const PhonePreview = memo(function PhonePreview({
+  images,
+  isDark,
 }: {
-  src: string;
-  themedSrc: string | null;
+  images: PreviewImages;
+  isDark: boolean;
 }) {
   return (
-    <div
-      className="absolute flex flex-col items-center"
-      style={{
-        left: 0,
-        // Keep the block optically centered when the themed chip is present.
-        top: ICON_CARD_Y - (themedSrc ? 29 : 0),
-        width: ICON_CARD_SIZE,
-      }}
-    >
-      <div
-        className="ik-checkerboard rounded-[2rem] border border-border/70"
-        style={{
-          width: ICON_CARD_SIZE,
-          height: ICON_CARD_SIZE,
-          padding: ICON_CARD_PADDING,
-          boxShadow:
-            "inset 0 1px 2px rgba(0,0,0,.06), 0 6px 16px rgba(15,18,23,.18)",
-        }}
-      >
-        <img
-          src={src}
-          alt="Icon preview"
-          draggable={false}
-          className="h-full w-full object-contain"
-        />
-      </div>
-      <span
-        className="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-muted-foreground"
-        style={{
-          marginTop: ICON_CARD_GAP,
-          fontSize: 12,
-          lineHeight: `${ICON_CARD_LABEL_H}px`,
-        }}
-      >
-        Your app
-      </span>
-      {/* Secondary preview of the monochrome (Android 13+) layer. The phone
-          always shows the actual design so edits stay visible there. */}
-      {themedSrc && (
-        <div className="flex items-center gap-2" style={{ marginTop: 18 }}>
-          <span
-            className="shrink-0 overflow-hidden rounded-full border border-border/70 bg-muted/60"
-            style={{ width: 40, height: 40, padding: 3 }}
-          >
-            <img
-              src={themedSrc}
-              alt="Themed icon preview"
-              draggable={false}
-              className="h-full w-full object-contain"
-            />
-          </span>
-          <span
-            className="text-left text-muted-foreground"
-            style={{ fontSize: 10, lineHeight: "13px" }}
-          >
-            Themed
-            <br />
-            Android 13+
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Loading() {
-  return <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />;
-}
-
-function IconPreview({ config, onIconSvg, appThemeDark }: {
-  config: IconConfig;
-  onIconSvg?: (svg: string) => void;
-  appThemeDark: boolean;
-}) {
-  const isDark = resolveDarkTheme(config.darkTheme, appThemeDark);
-  const { images, error } = useMockupImages(config, config.darkTheme, appThemeDark);
-
-  useEffect(() => {
-    if (config.source !== "clipart") return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const svg = await buildIconSvgMarkup(
-          config.clipartName,
-          cssColorToHex(config.foregroundColor),
-        );
-        if (!cancelled && svg) onIconSvg?.(svg);
-      } catch (error) {
-        console.error("Failed to render clipart SVG markup:", error);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [config.foregroundColor, config.source, config.clipartName, onIconSvg]);
-
-  if (!images) {
-    if (error) {
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-5 text-center">
-          <span className="text-3xl">⚠</span>
-          <p className="max-w-[260px] text-sm text-muted-foreground">
-            Could not render the preview. Check the icon or the
-            chosen background color.
-          </p>
-        </div>
-      );
-    }
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <Loading />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-full min-h-0 w-full items-center justify-center p-5">
-      <ScaledStage width={STAGE_W} height={STAGE_H}>
-        <IconCard src={images.large} themedSrc={images.themed} />
-        <div className="absolute" style={{ left: ICON_CARD_SIZE + STAGE_GAP }}>
-          <DeviceMockup images={images} isDark={isDark} />
-        </div>
+    <div className="h-full w-full" aria-hidden="true">
+      <ScaledStage width={DEVICE_WIDTH} height={DEVICE_HEIGHT}>
+        <DeviceMockup phone={images.phone} isDark={isDark} />
       </ScaledStage>
     </div>
   );
-}
-
-export default memo(IconPreview);
+});

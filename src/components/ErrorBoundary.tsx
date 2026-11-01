@@ -31,19 +31,35 @@ export default class ErrorBoundary extends Component<
       return (
         <div
           role="alert"
-          className="flex h-[100dvh] w-full flex-col items-center justify-center gap-4 bg-background px-6 text-center text-foreground"
+          className="flex h-dvh w-full flex-col items-center justify-center gap-4 bg-background px-6 text-center text-foreground"
         >
-          <span className="text-4xl">⚠</span>
-          <h1 className="text-xl font-black tracking-tight">
+          <span className="grid size-14 place-items-center rounded-2xl bg-destructive/10 text-destructive-text">
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+              <path d="M12 9v4" />
+              <path d="M12 17h.01" />
+            </svg>
+          </span>
+          <h1 className="font-display text-xl font-bold tracking-tight">
             Something went wrong
           </h1>
-          <p className="max-w-sm text-sm text-muted-foreground">
+          <p className="max-w-sm text-sm leading-6 text-muted-foreground">
             Reloading usually fixes it — your design is kept in the URL.
           </p>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-primary-foreground"
+            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Reload
           </button>

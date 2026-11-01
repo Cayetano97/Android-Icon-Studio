@@ -7,6 +7,7 @@ import {
   parseCssGradient,
 } from "@/lib/canvasGradient";
 import { cssColorToHex, sanitizeCssColor } from "@/lib/color";
+import { ensureFontLoaded } from "@/lib/fonts";
 
 export type RenderShape =
   | "circle"
@@ -356,11 +357,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 async function loadFont(fontFamily: string, fontWeight: number) {
-  try {
-    await document.fonts.load(`${fontWeight} 16px "${fontFamily}"`);
-  } catch {
-    // ignore font load errors, fall back to sans-serif
-  }
+  await ensureFontLoaded(fontFamily, fontWeight);
 }
 
 export interface ForegroundSource {

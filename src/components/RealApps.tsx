@@ -22,32 +22,34 @@ export function AppIcon({
     <div
       className={`relative overflow-hidden ${className ?? ""}`}
       style={{
-        background: app.bg ?? "#fff",
-        // Pixel Launcher: circular mask by default
+        background: app.bg ?? "#ffffff",
+        // Pixel Launcher masks every adaptive icon into a circle by default.
         borderRadius: "50%",
         ...style,
       }}
       role="img"
       aria-label={app.label}
     >
-      <img
-        src={app.iconUrl}
-        alt=""
-        draggable={false}
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-        style={{
-          width: `${app.fit ?? 88}%`,
-          height: `${app.fit ?? 88}%`,
-          objectFit: "contain",
-          filter: app.tintWhite ? "brightness(0) invert(1)" : undefined,
-        }}
-      />
+      {app.glyph === "phone" ? (
+        <PhoneGlyph size="56%" />
+      ) : (
+        <img
+          src={app.iconUrl}
+          alt=""
+          draggable={false}
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 object-contain"
+          style={{
+            width: `${app.fit ?? 100}%`,
+            height: `${app.fit ?? 100}%`,
+          }}
+        />
+      )}
       {/* Inner light + ring like on real adaptive icons */}
       <div
         className="pointer-events-none absolute inset-0 rounded-full"
         style={{
           boxShadow:
-            "inset 0 1px 1px rgba(255,255,255,0.45), inset 0 -2px 3px rgba(0,0,0,0.18), inset 0 0 0 0.8px rgba(0,0,0,0.12)",
+            "inset 0 1px 1px rgba(255,255,255,0.34), inset 0 -1px 2px rgba(0,0,0,0.14), inset 0 0 0 0.5px rgba(0,0,0,0.1)",
         }}
       />
     </div>
@@ -58,8 +60,27 @@ export function AppIcon({
 // Official glyphs
 // ---------------------------------------------------------------------------
 
+/** Material "call" handset, used for the Pixel Phone launcher icon. */
+export function PhoneGlyph({ size }: { size?: number | string }) {
+  return (
+    <svg
+      width={size ?? 24}
+      height={size ?? 24}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      style={{ width: size ?? 24, height: size ?? 24 }}
+    >
+      <path
+        fill="#ffffff"
+        d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.24 1.02l-2.21 2.2Z"
+      />
+    </svg>
+  );
+}
+
 /** Official Google G in 4 colors (#4285F4 #EA4335 #FBBC05 #34A853). */
-export function GoogleGLogo({ size = 20 }: { size?: number }) {
+export function GoogleGLogo({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <path
@@ -82,8 +103,14 @@ export function GoogleGLogo({ size = 20 }: { size?: number }) {
   );
 }
 
-/** Pixel search-pill microphone (gray #5f6368 like the real launcher). */
-export function MicGlyph({ size = 18 }: { size?: number }) {
+/** Pixel search-pill microphone. */
+export function MicGlyph({
+  size = 18,
+  color = "#5f6368",
+}: {
+  size?: number | string;
+  color?: string;
+}) {
   return (
     <svg
       width={size}
@@ -92,16 +119,16 @@ export function MicGlyph({ size = 18 }: { size?: number }) {
       fill="none"
       aria-hidden="true"
     >
-      <rect x="9" y="2.5" width="6" height="11" rx="3" fill="#5f6368" />
+      <rect x="9" y="2.5" width="6" height="11" rx="3" fill={color} />
       <path
         d="M5.5 11.5a6.5 6.5 0 0 0 13 0"
-        stroke="#5f6368"
+        stroke={color}
         strokeWidth="2"
         strokeLinecap="round"
       />
       <path
         d="M12 18v3.5"
-        stroke="#5f6368"
+        stroke={color}
         strokeWidth="2"
         strokeLinecap="round"
       />
@@ -110,7 +137,13 @@ export function MicGlyph({ size = 18 }: { size?: number }) {
 }
 
 /** Simplified Google Lens with the 4 official colors. */
-export function LensGlyph({ size = 18 }: { size?: number }) {
+export function LensGlyph({
+  size = 18,
+  ringColor = "#5f6368",
+}: {
+  size?: number | string;
+  ringColor?: string;
+}) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <circle
@@ -118,7 +151,7 @@ export function LensGlyph({ size = 18 }: { size?: number }) {
         cy="12"
         r="7.2"
         fill="none"
-        stroke="#5f6368"
+        stroke={ringColor}
         strokeWidth="2"
       />
       <circle cx="12" cy="12" r="2.6" fill="#4285F4" />
@@ -148,7 +181,7 @@ export function LensGlyph({ size = 18 }: { size?: number }) {
 }
 
 /** Pixel Weather icon (sun behind cloud). */
-export function PixelWeatherGlyph({ size = 22 }: { size?: number }) {
+export function PixelWeatherGlyph({ size = 22 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="9" cy="8" r="3.4" fill="#FBBC05" />

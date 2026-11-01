@@ -7,6 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
+import { useTheme } from "@/hooks/use-theme";
 import {
   gradientToSolid,
   normalizeGradientColors,
@@ -37,11 +38,13 @@ const LazyColorPickerPanel = lazy(() =>
       onChange,
       idSuffix,
       width,
+      dark,
     }: {
       value: string;
       onChange: (c: string) => void;
       idSuffix: string;
       width: number;
+      dark: boolean;
     }) {
       const {
         degrees,
@@ -69,8 +72,9 @@ const LazyColorPickerPanel = lazy(() =>
                   type="button"
                   onClick={setLinear}
                   title="Linear gradient"
+                  aria-label="Linear gradient"
                   aria-pressed={gradientType === "linear-gradient"}
-                  className={`p-1 rounded-md transition-all ${gradientType === "linear-gradient" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`p-1.5 rounded-md transition-colors ${gradientType === "linear-gradient" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <svg
                     width="14"
@@ -89,8 +93,9 @@ const LazyColorPickerPanel = lazy(() =>
                   type="button"
                   onClick={setRadial}
                   title="Radial gradient"
+                  aria-label="Radial gradient"
                   aria-pressed={gradientType === "radial-gradient"}
-                  className={`p-1 rounded-md transition-all ${gradientType === "radial-gradient" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`p-1.5 rounded-md transition-colors ${gradientType === "radial-gradient" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <svg
                     width="14"
@@ -118,7 +123,7 @@ const LazyColorPickerPanel = lazy(() =>
               )}
               <div className="w-px h-4 bg-border" />
               <div className="flex items-center gap-1.5 ml-auto">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                <span className="text-[11px] font-semibold text-muted-foreground">
                   Stop
                 </span>
                 <input
@@ -136,7 +141,7 @@ const LazyColorPickerPanel = lazy(() =>
                   onClick={() => deletePoint(selectedPoint)}
                   title="Delete color stop"
                   aria-label="Delete color stop"
-                  className="p-1.5 rounded-lg bg-background border border-border text-muted-foreground hover:text-red-500 transition-all"
+                  className="rounded-lg border border-border bg-background p-1.5 text-muted-foreground transition-colors hover:text-destructive-text"
                 >
                   <I.Trash2 size={12} aria-hidden />
                 </button>
@@ -155,7 +160,8 @@ const LazyColorPickerPanel = lazy(() =>
             hideAdvancedSliders
             hideColorGuide
             hideInputType
-            disableLightMode={false}
+            disableDarkMode={!dark}
+            disableLightMode={dark}
             idSuffix={idSuffix}
           />
         </>
@@ -187,8 +193,9 @@ function PopoverColorPicker({
   const [isOpen, setIsOpen] = useState(false);
   const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
   const [panelWidth, setPanelWidth] = useState(BASE_PANEL_WIDTH);
-  const swatchRef = useRef<HTMLDivElement>(null);
+  const swatchRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const { dark } = useTheme();
 
   const isGradient = value.toLowerCase().includes("gradient");
   // The picker library only understands rgb-style colors: rewrite any
@@ -245,10 +252,15 @@ function PopoverColorPicker({
     computePosition();
     // Second pass once the picker is mounted and its real height is known.
     const timer = setTimeout(computePosition, 0);
+    // The picker body is lazy: its height changes after the chunk resolves.
+    // Reposition on that resize so the panel never runs off the viewport.
+    const observer = new ResizeObserver(() => computePosition());
+    if (popoverRef.current) observer.observe(popoverRef.current);
     window.addEventListener("resize", computePosition);
     window.addEventListener("scroll", computePosition, true);
     return () => {
       clearTimeout(timer);
+      observer.disconnect();
       window.removeEventListener("resize", computePosition);
       window.removeEventListener("scroll", computePosition, true);
     };
@@ -271,21 +283,94 @@ function PopoverColorPicker({
         !swatchRef.current.contains(event.target as Node)
       ) {
         setIsOpen(false);
+        // Clicking empty chrome (not another control) should not drop focus
+        // on <body>; return it to the swatch so keyboard users keep context.
+        if (document.activeElement === document.body) {
+          swatchRef.current.focus({ preventScroll: true });
+        }
       }
     }
     if (isOpen) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
-
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape" && isOpen) {
+        // Capture phase: keep the settings drawer (which also listens for
+        // Escape) open when the user is only dismissing this popover.
+        event.stopPropagation();
         setIsOpen(false);
         swatchRef.current?.focus();
       }
     }
-    if (isOpen) document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
+    if (isOpen) document.addEventListener("keydown", handleEscape, true);
+    return () => document.removeEventListener("keydown", handleEscape, true);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Tab" || !popoverRef.current) return;
+      const focusable = Array.from(
+        popoverRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    // The picker library ships visible HEX/R/G/B/A labels but does not
+    // associate them with its inputs, and its draggable hue handle has no
+    // accessible name. Patch those once the lazily mounted panel appears.
+    const panel = popoverRef.current;
+    if (!panel) return;
+
+    const patch = () => {
+      const labels: Array<[string, string]> = [
+        ["rbgcp-hex-input", "Hex color"],
+        ["rbgcp-R-input", "Red"],
+        ["rbgcp-G-input", "Green"],
+        ["rbgcp-B-input", "Blue"],
+        ["rbgcp-A-input", "Alpha"],
+      ];
+      for (const [idPrefix, label] of labels) {
+        panel
+          .querySelectorAll<HTMLInputElement>(`input[id^="${idPrefix}"]`)
+          .forEach((input) => {
+            if (!input.getAttribute("aria-label")) {
+              input.setAttribute("aria-label", label);
+            }
+          });
+      }
+      panel
+        .querySelectorAll<HTMLElement>('[role="button"]')
+        .forEach((element) => {
+          if (element.getAttribute("aria-label")) return;
+          element.setAttribute(
+            "aria-label",
+            element.id.includes("hue-handle") ? "Hue" : "Color stop",
+          );
+        });
+    };
+
+    patch();
+    const observer = new MutationObserver(patch);
+    observer.observe(panel, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, [isOpen]);
 
   function toggle(next: boolean) {
@@ -304,29 +389,22 @@ function PopoverColorPicker({
 
   return (
     <div
-      className={`flex items-center relative group ${badge ? "gap-1" : "gap-2"}`}
+      className={`relative flex items-center ${badge ? "gap-1" : "gap-2"}`}
     >
-      <div
+      <button
         ref={swatchRef}
-        role="button"
-        tabIndex={0}
+        type="button"
         aria-label={`Open ${label} picker`}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={() => toggle(!isOpen)}
         title={label}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            toggle(!isOpen);
-          }
-        }}
         style={{ background: displayValue }}
-        className="size-6 shrink-0 rounded-full border border-border cursor-pointer shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-transform hover:scale-110"
+        className="size-8 shrink-0 cursor-pointer rounded-full border border-input/80 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
       />
       {badge && (
         <span
-          className="text-[10px] font-bold text-muted-foreground"
+          className="text-[11px] font-semibold text-muted-foreground"
           aria-hidden
         >
           {badge}
@@ -340,6 +418,7 @@ function PopoverColorPicker({
             { value: "gradient", label: "Gradient" },
           ]}
           onChange={(v) => handleModeSwitch(v === "gradient")}
+          label={`${label} type`}
         />
       )}
       {isOpen &&
@@ -367,6 +446,7 @@ function PopoverColorPicker({
                 onChange={onChange}
                 idSuffix={idSuffix}
                 width={panelWidth}
+                dark={dark}
               />
             </Suspense>
           </div>,

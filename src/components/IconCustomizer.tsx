@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import type { IconConfig, IconShape, DarkTheme } from "@/types/icon";
+import { memo, useId, useState } from "react";
+import type { IconConfig, IconShape } from "@/types/icon";
 import { useUiIcons } from "@/lib/uiIcons";
 import GradientEditor from "./GradientEditor";
 import SidebarSection from "./SidebarSection";
@@ -19,26 +19,25 @@ const SHAPES: { value: IconShape; label: string }[] = [
   { value: "circle", label: "Circle" },
 ];
 
-const DARK_THEMES: { value: DarkTheme; label: string }[] = [
-  { value: "auto", label: "Auto" },
-  { value: "dark", label: "Dark" },
-  { value: "light", label: "Light" },
-];
-
 // ---------------------------------------------------------------------------
-// Sections (content; collapsible headers are rendered by SidebarSection)
+// Sections
 // ---------------------------------------------------------------------------
 
 function TransformDetails({ config, onChange }: Props) {
   const [open, setOpen] = useState(() => {
     try {
-      return window.localStorage.getItem("android-icon-studio:section-transform") !== "closed";
+      return (
+        window.localStorage.getItem(
+          "android-icon-studio:section-transform",
+        ) !== "closed"
+      );
     } catch {
       return true;
     }
   });
   const I = useUiIcons();
-  const contentId = "sidebar-transform-details";
+  const uid = useId();
+  const contentId = `transform-${uid.replace(/[^a-zA-Z0-9]/g, "")}`;
 
   function toggle() {
     setOpen((prev) => {
@@ -70,33 +69,34 @@ function TransformDetails({ config, onChange }: Props) {
     config.foregroundRotation === 0;
 
   return (
-    <div className="rounded-lg border border-border/50 bg-background/40">
-      <div className="flex items-center gap-2 px-2 py-1">
+    <div className="rounded-lg border border-border/70 bg-background/40">
+      <div className="flex items-center gap-2 px-2.5 py-1">
         <button
           type="button"
           onClick={toggle}
           aria-expanded={open}
           aria-controls={contentId}
-          className="flex flex-1 items-center gap-1.5 py-1 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex flex-1 items-center gap-1.5 rounded py-1.5 text-left text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Transform
           {open ? (
-            <I.ChevronDown size={13} className="shrink-0" aria-hidden />
+            <I.ChevronDown size={13} aria-hidden className="shrink-0" />
           ) : (
-            <I.ChevronRight size={13} className="shrink-0" aria-hidden />
+            <I.ChevronRight size={13} aria-hidden className="shrink-0" />
           )}
           {!isDefault && (
-            <span className="size-1.5 rounded-full bg-primary shrink-0" aria-label="Modified" />
+            <span className="ml-0.5 size-1.5 shrink-0 rounded-full bg-primary">
+              <span className="sr-only">Modified</span>
+            </span>
           )}
         </button>
         {!isDefault && (
           <button
             type="button"
             onClick={resetTransform}
-            title="Reset transform"
-            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary transition-colors"
+            className="flex items-center gap-1 rounded px-2 py-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <I.RotateCcw size={10} aria-hidden />
+            <I.RotateCcw size={11} aria-hidden />
             Reset
           </button>
         )}
@@ -109,8 +109,8 @@ function TransformDetails({ config, onChange }: Props) {
           open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
-        <div className="overflow-hidden min-h-0" inert={!open}>
-          <div className="space-y-1 px-2 pb-2">
+        <div className="min-h-0 overflow-hidden" inert={!open}>
+          <div className="space-y-0.5 px-2.5 pb-2.5">
             <SliderRow
               label="Scale"
               value={config.foregroundScale}
@@ -160,11 +160,13 @@ function TransformDetails({ config, onChange }: Props) {
 function ForegroundSection({ config, onChange }: Props) {
   return (
     <div className="space-y-1.5">
-      <PropertyRow label="Icon Color">
+      <PropertyRow label="Icon color">
         <PopoverColorPicker
-          label="Icon"
+          label="Icon color"
           value={config.foregroundColor}
-          onChange={(color) => onChange({ foregroundColor: cssColorToHex(color) })}
+          onChange={(color) =>
+            onChange({ foregroundColor: cssColorToHex(color) })
+          }
           solidOnly
           idSuffix="fg"
         />
@@ -187,8 +189,6 @@ function ForegroundSection({ config, onChange }: Props) {
 }
 
 function BackgroundSection({ config, onChange }: Props) {
-  // The inline gradient editor only makes sense in gradient mode. Same
-  // detection as PopoverColorPicker so the segment and the editor stay in sync.
   const isBackgroundGradient =
     config.background?.toLowerCase().includes("gradient") ?? false;
 
@@ -213,91 +213,94 @@ function BackgroundSection({ config, onChange }: Props) {
           value={config.shape}
           options={SHAPES}
           onChange={(shape) => onChange({ shape: shape as IconShape })}
+          label="Background shape"
         />
       </PropertyRow>
     </div>
   );
 }
 
-function MoreContent({ config, onChange }: Props) {
+function AdvancedContent({ config, onChange }: Props) {
   return (
-        <div className="space-y-1">
-          <PropertyRow label="Filename">
-            <input
-              value={config.filename}
-              onChange={(e) => {
-                // Mirror the export sanitization (lowercase, [a-z0-9_],
-                // must start with a letter). Empty is kept transiently so
-                // the field stays clearable; export falls back to ic_launcher.
-                const raw = e.target.value;
-                onChange({
-                  filename: raw === "" ? "" : sanitizeResourceName(raw),
-                });
-              }}
-              placeholder="ic_launcher"
-              spellCheck={false}
-              className="ik-input"
-            />
-          </PropertyRow>
-          <PropertyRow label="Dark theme">
-            <Segment
-              value={config.darkTheme}
-              options={DARK_THEMES}
-              onChange={(v) => onChange({ darkTheme: v as DarkTheme })}
-            />
-          </PropertyRow>
-          <PropertyRow label="Themed">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={config.monochromeEnabled}
-              onClick={() =>
-                onChange({ monochromeEnabled: !config.monochromeEnabled })
-              }
-              className={`relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors ${
-                config.monochromeEnabled ? "bg-primary" : "bg-muted/40 border border-border"
-              }`}
-            >
-              <span
-                className={`inline-block size-3.5 rounded-full bg-white shadow transition-transform ${
-                  config.monochromeEnabled ? "translate-x-[16px]" : "translate-x-[1px]"
-                }`}
-              />
-            </button>
-          </PropertyRow>
-          {config.monochromeEnabled && (
-            <PropertyRow label="Monochrome">
-              <PopoverColorPicker
-                label="Monochrome"
-                value={config.monochromeColor}
-                onChange={(color) =>
-                  onChange({ monochromeColor: cssColorToHex(color) })
-                }
-                solidOnly
-                idSuffix="mono"
-              />
-            </PropertyRow>
-          )}
-        </div>
+    <div className="space-y-1">
+      <PropertyRow label="Filename">
+        <input
+          value={config.filename}
+          onChange={(e) => {
+            // Mirror the export sanitization (lowercase, [a-z0-9_], must
+            // start with a letter). Empty is kept transiently so the field
+            // stays clearable; export falls back to ic_launcher.
+            const raw = e.target.value;
+            onChange({
+              filename: raw === "" ? "" : sanitizeResourceName(raw),
+            });
+          }}
+          placeholder="ic_launcher"
+          aria-label="Export file name"
+          spellCheck={false}
+          autoComplete="off"
+          className="ik-input"
+        />
+      </PropertyRow>
+      <PropertyRow label="Themed">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={config.monochromeEnabled}
+          aria-label="Themed icon"
+          onClick={() =>
+            onChange({ monochromeEnabled: !config.monochromeEnabled })
+          }
+          className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-panel ${
+            config.monochromeEnabled
+              ? "bg-primary"
+              : "border border-input bg-muted/50"
+          }`}
+        >
+          <span
+            aria-hidden
+            className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${
+              config.monochromeEnabled ? "translate-x-[24px]" : "translate-x-[3px]"
+            }`}
+          />
+        </button>
+      </PropertyRow>
+      {config.monochromeEnabled && (
+        <PropertyRow label="Monochrome">
+          <PopoverColorPicker
+            label="Monochrome color"
+            value={config.monochromeColor}
+            onChange={(color) =>
+              onChange({ monochromeColor: cssColorToHex(color) })
+            }
+            solidOnly
+            idSuffix="mono"
+          />
+        </PropertyRow>
+      )}
+      <p className="pt-1 text-[11px] leading-4 text-muted-foreground">
+        Exports a ZIP with adaptive layers, legacy PNGs, Play Store assets, SVG
+        and a vector drawable.
+      </p>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Main component: compact accordion (M3 progressive disclosure) so the
-// sidebar fits without scrolling. State persists in localStorage.
+// Main component
 // ---------------------------------------------------------------------------
 
 function IconCustomizer({ config, onChange }: Props) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <SidebarSection id="foreground" title="Foreground" defaultOpen>
         <ForegroundSection config={config} onChange={onChange} />
       </SidebarSection>
       <SidebarSection id="background" title="Background" defaultOpen>
         <BackgroundSection config={config} onChange={onChange} />
       </SidebarSection>
-      <SidebarSection id="more" title="More" defaultOpen={false}>
-        <MoreContent config={config} onChange={onChange} />
+      <SidebarSection id="advanced" title="Advanced" defaultOpen={false}>
+        <AdvancedContent config={config} onChange={onChange} />
       </SidebarSection>
     </div>
   );

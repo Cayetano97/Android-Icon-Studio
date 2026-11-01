@@ -21,7 +21,7 @@ export default defineConfig((_config) => ({
         description:
           "Create adaptive Android icons with real-time preview and export",
         theme_color: "#3DDC84",
-        background_color: "#0f1014",
+        background_color: "#121319",
         display: "standalone",
         icons: [
           {
@@ -52,7 +52,7 @@ export default defineConfig((_config) => ({
             options: {
               cacheName: "google-fonts-cache",
               expiration: {
-                maxEntries: 10,
+                maxEntries: 30,
                 maxAgeSeconds: 60 * 60 * 24 * 365,
               },
               cacheableResponse: {
@@ -66,7 +66,7 @@ export default defineConfig((_config) => ({
             options: {
               cacheName: "gstatic-fonts-cache",
               expiration: {
-                maxEntries: 10,
+                maxEntries: 60,
                 maxAgeSeconds: 60 * 60 * 24 * 365,
               },
               cacheableResponse: {

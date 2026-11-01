@@ -40,6 +40,7 @@ function GradientEditor({ current, onSelect }: Props) {
           value={type}
           options={TYPE_OPTIONS}
           onChange={(v) => onSelect(setGradientType(current, v as "linear" | "radial"))}
+          label="Gradient type"
         />
       </PropertyRow>
 
@@ -71,7 +72,7 @@ function GradientEditor({ current, onSelect }: Props) {
             onClick={() => onSelect(applyTwoColors(current, c2, c1))}
             title="Swap colors A and B"
             aria-label="Swap colors A and B"
-            className="p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-accent/60 transition-all"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <I.ArrowRightLeft size={14} aria-hidden />
           </button>

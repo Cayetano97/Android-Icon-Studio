@@ -56,3 +56,55 @@ export const SUPPORTED_FONTS: FontConfig[] = [
     category: "handwriting",
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Preview font loading
+// ---------------------------------------------------------------------------
+
+const fontLinkCache = new Map<string, Promise<void>>();
+
+export function ensureFontLoaded(family: string, weight = 400): Promise<void> {
+  if (typeof document === "undefined") return Promise.resolve();
+
+  let linkReady = fontLinkCache.get(family);
+  if (!linkReady) {
+    const config = SUPPORTED_FONTS.find((font) => font.family === family);
+    if (!config) return Promise.resolve();
+    const weights = config.weights.join(";");
+    const href =
+      "https://fonts.googleapis.com/css2?family=" +
+      encodeURIComponent(family).replace(/%20/g, "+") +
+      ":wght@" +
+      weights +
+      "&display=swap";
+    const id = "ais-font-" + family.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    linkReady = new Promise<void>((resolve) => {
+      const existing = document.getElementById(id) as HTMLLinkElement | null;
+      if (existing) {
+        resolve();
+        return;
+      }
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = href;
+      link.onload = () => resolve();
+      link.onerror = () => resolve();
+      document.head.appendChild(link);
+    });
+    fontLinkCache.set(family, linkReady);
+  }
+
+  // Always request the concrete weight: the stylesheet lists every supported
+  // weight but the browser fetches each face lazily. Caching only the link
+  // promise (not the first weight) keeps weight changes sharp on canvas.
+  return linkReady.then(async () => {
+    try {
+      await document.fonts.load(`${weight} 16px "${family}"`);
+    } catch {
+      /* fall back to the system stack */
+    }
+  });
+}
+

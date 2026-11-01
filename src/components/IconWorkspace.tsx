@@ -1,25 +1,30 @@
 import { memo } from "react";
 import type { IconConfig } from "@/types/icon";
-import IconPreview from "@/components/IconPreview";
+import PreviewBoard from "@/components/PreviewBoard";
 
 interface IconWorkspaceProps {
   config: IconConfig;
+  onChange: (updates: Partial<IconConfig>) => void;
   onIconSvg: (svg: string) => void;
   appThemeDark: boolean;
 }
 
 export default memo(function IconWorkspace({
   config,
+  onChange,
   onIconSvg,
   appThemeDark,
 }: IconWorkspaceProps) {
   return (
     <main
       id="workspace"
-      className="flex-1 min-w-0 overflow-hidden relative bg-[hsl(var(--background))]"
+      aria-label="Icon preview"
+      tabIndex={-1}
+      className="workspace-canvas relative flex min-w-0 flex-1 flex-col overflow-hidden focus-visible:outline-none"
     >
-      <IconPreview
+      <PreviewBoard
         config={config}
+        onChange={onChange}
         onIconSvg={onIconSvg}
         appThemeDark={appThemeDark}
       />

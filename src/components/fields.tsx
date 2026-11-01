@@ -27,13 +27,16 @@ export function Segment({
   value,
   options,
   onChange,
+  label,
 }: {
   value: string;
   options: { value: string; label: string }[];
   onChange: (value: string) => void;
+  /** Accessible name for the group (the visual row label is not a <label>). */
+  label?: string;
 }) {
   return (
-    <div className="ik-segment">
+    <div className="ik-segment" role="group" aria-label={label}>
       {options.map((opt) => (
         <button
           type="button"

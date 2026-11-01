@@ -34,7 +34,7 @@ function GradientTemplates({ current, onSelect }: Props) {
           type="button"
           onClick={() => setShowPatterns((v) => !v)}
           aria-expanded={showPatterns}
-          className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary transition-colors"
+          className="flex h-8 items-center gap-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
         >
           {showPatterns
             ? "Hide templates"
@@ -49,7 +49,7 @@ function GradientTemplates({ current, onSelect }: Props) {
           type="button"
           onClick={() => setShowGuide((v) => !v)}
           aria-expanded={showGuide}
-          className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-primary transition-colors"
+          className="flex h-8 items-center text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
         >
           {showGuide ? "Hide guide" : "Guide"}
         </button>
@@ -107,16 +107,16 @@ function GradientTemplates({ current, onSelect }: Props) {
                     aria-pressed={active}
                     title={`${p.name} (${p.hint}) — ${p.description} Export: ${p.android}.`}
                     onClick={() => onSelect(css)}
-                    className={`group flex min-w-0 flex-col items-center gap-1 rounded-lg p-1 transition-all hover:bg-accent/60 ${
+                    className={`group flex min-w-0 flex-col items-center gap-1 rounded-lg p-1 transition-[background-color,transform] hover:bg-accent/60 ${
                       active ? "bg-primary/10 ring-1 ring-primary" : ""
                     }`}
                   >
                     <span
                       aria-hidden
                       style={{ background: css }}
-                      className="h-7 w-full rounded-md border border-border shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-[1.03]"
+                      className="h-8 w-full rounded-md border border-border shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-[1.03]"
                     />
-                    <span className="text-[9px] font-semibold leading-none text-muted-foreground group-hover:text-foreground truncate max-w-full">
+                    <span className="max-w-full truncate text-[11px] font-medium leading-none text-muted-foreground group-hover:text-foreground">
                       {p.name}
                     </span>
                   </button>

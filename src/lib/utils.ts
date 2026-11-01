@@ -20,6 +20,11 @@ export function sanitizeResourceName(raw: string): string {
   return name || "ic_launcher";
 }
 
+/** "ArrowDown" -> "Arrow Down" for human-readable icon labels. */
+export function formatIconName(name: string): string {
+  return name.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
 /** Reads from localStorage without throwing in storage-blocked contexts. */
 export function safeStorageGet(key: string): string | null {
   try {
